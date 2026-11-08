@@ -144,6 +144,34 @@ def test_create_annotated_dataset_synthetic(tmp_path: Path):
     assert target_terms == ["GO:0001", "GO:0002"]
 
 
+def test_create_annotated_dataset_default_all_aspects(tmp_path: Path):
+    """Verify create_annotated_dataset defaults to aspect=None and includes all aspects."""
+    fasta_file = tmp_path / "multi_aspect.fasta"
+    fasta_file.write_text(
+        ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "ACDEFGHIKLMNPQRSTVWY\n"
+    )
+
+    terms_file = tmp_path / "multi_terms.tsv"
+    terms_file.write_text(
+        "EntryID\tterm\taspect\n"
+        "P1\tGO:0001\tF\n"
+        "P1\tGO:0002\tP\n"
+        "P1\tGO:0003\tC\n"
+    )
+
+    # Call with default aspect (None)
+    df, target_terms = create_annotated_dataset(
+        fasta_path=fasta_file,
+        terms_path=terms_file,
+        max_proteins=None,
+    )
+
+    assert len(df) == 1
+    assert set(target_terms) == {"GO:0001", "GO:0002", "GO:0003"}
+    assert set(df.iloc[0]["terms"]) == {"GO:0001", "GO:0002", "GO:0003"}
+
+
 def test_real_dataset_smoke():
     """Smoke test: verify reading real workspace files (small slice)."""
     uniprot_path = get_uniprot_path()

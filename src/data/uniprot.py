@@ -198,18 +198,38 @@ def load_information_accretion(ia_path: str | Path) -> dict[str, float]:
 def create_annotated_dataset(
     fasta_path: str | Path,
     terms_path: str | Path,
-    aspect: str = "F",
+    aspect: str | None = None,
     max_proteins: int | None = 5000,
     min_term_count: int | None = None,
     top_k_terms: int | None = 300,
 ) -> tuple[pd.DataFrame, list[str]]:
     """Build an aligned DataFrame of sequences and multi-label GO annotations.
 
-    Ideal for fast prototyping (dev mode) and reproducible train/test splits.
+    Streams UniProt FASTA records and aligns them with their associated Gene
+    Ontology terms from a tabular annotations file (e.g. CAFA train_terms.tsv).
+
+    Args:
+        fasta_path: Path to plain or gzip-compressed FASTA file.
+        terms_path: Path to annotations TSV file with columns (EntryID, term, aspect).
+        aspect: Optional filter for a specific Gene Ontology sub-ontology:
+            - 'F' or 'MF': Molecular Function (biochemical activity)
+            - 'P' or 'BP': Biological Process (cellular pathway / program)
+            - 'C' or 'CC': Cellular Component (subcellular localization)
+            - None (default): Retains all aspects jointly. When using a limited
+              `top_k_terms`, frequent Cellular Component terms may dominate the top
+              ranks; callers seeking balanced representation across all categories
+              can either set `top_k_terms=None` (filtering by `min_term_count`
+              instead) or call this function separately for each aspect.
+        max_proteins: Maximum number of annotated proteins to yield (None for all).
+        min_term_count: Minimum occurrence frequency for a GO term to be included.
+            Useful for pruning rare terms without aspect bias.
+        top_k_terms: Top K most frequent GO terms to retain (None for all).
 
     Returns:
-        tuple of (dataset_df, target_terms_list)
-        dataset_df has columns: ['EntryID', 'entry_name', 'organism', 'sequence', 'length', 'terms']
+        tuple of (dataset_df, target_terms_list):
+            - dataset_df: DataFrame with columns ['EntryID', 'entry_name',
+              'organism', 'sequence', 'length', 'terms']
+            - target_terms_list: Ordered list of unique target GO term IDs.
     """
     annotations_df, target_terms = load_annotations(
         terms_path=terms_path,
