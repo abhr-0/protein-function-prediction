@@ -1,11 +1,19 @@
 [project]
-name = "impure-package"
+name = "protein-function-prediction"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-based protein function predictor on UniProt and CAFA"
 authors = [ ]
 requires-python = ">=3.13"
 dependencies = [
     "biopython>=1.88",
     "jupyter>=1.1.1",
     "pandas>=3.0.5",
+    "pytest>=9.2.0",
+    "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
