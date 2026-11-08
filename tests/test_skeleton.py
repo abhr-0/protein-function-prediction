@@ -2,6 +2,7 @@
 
 import src
 import src.data
+import src.evaluation
 import src.features
 import src.models
 import src.utils
@@ -13,4 +14,5 @@ def test_package_imports():
     assert src.data is not None
     assert src.features is not None
     assert src.models is not None
+    assert src.evaluation is not None
     assert src.utils is not None
