@@ -1,4 +1,12 @@
-# Data
-cafa_6_protein_data/*
-# ipynb checkpoints
-.ipynb_checkpoints/*
+# Data & Artifacts
+data/*
+!data/.gitkeep
+
+# Python & Environment
+__pycache__/
+*.py[cod]
+.venv/
+.cache/
+
+# Jupyter
+.ipynb_checkpoints/
