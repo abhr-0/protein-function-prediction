@@ -68,6 +68,9 @@ def _args(**overrides) -> Namespace:
         "seed": 42,
         "no_sampling": False,
         "release": "2026_04",
+        "aspect": "F",
+        "min_term_count": 20,
+        "top_terms": 0,
     }
     base.update(overrides)
     return Namespace(**base)
@@ -99,3 +102,35 @@ def test_warns_when_release_is_unknown(runner):
     """Unknown provenance must be visible, not silent."""
     warnings = runner.build_warnings(_args(release="unknown"), explicit_evidence_policy=False)
     assert any("release is unknown" in warning for warning in warnings)
+
+
+def test_run_tag_encodes_vocabulary_policy(runner):
+    """Two runs differing only in vocabulary settings must not collide."""
+    wide = runner.build_run_tag(
+        _args(min_term_count=20, top_terms=0), max_proteins=5000
+    )
+    narrow = runner.build_run_tag(
+        _args(min_term_count=20, top_terms=50), max_proteins=5000
+    )
+    other_count = runner.build_run_tag(
+        _args(min_term_count=5, top_terms=0), max_proteins=5000
+    )
+
+    assert wide == "uniprot_5000_F_mc20_kall"
+    assert len({wide, narrow, other_count}) == 3
+
+
+def test_run_tag_marks_full_corpus(runner):
+    """A full-corpus run must not look like a sized run in the filenames."""
+    assert runner.build_run_tag(_args(n_proteins=0), None) == "uniprot_full_F_mc20_kall"
+
+
+def test_at_search_floor(runner):
+    """The floor guard must fire at the grid minimum and just above it."""
+    from src.evaluation.metrics import DEFAULT_THRESHOLD_GRID
+
+    floor = float(DEFAULT_THRESHOLD_GRID.min())
+    assert runner.at_search_floor(floor)
+    assert runner.at_search_floor(floor + 1e-12)
+    assert not runner.at_search_floor(floor + 0.01)
+    assert not runner.at_search_floor(0.5)

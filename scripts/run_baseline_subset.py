@@ -39,6 +39,7 @@ from src.data.targets import (  # noqa: E402
 )
 from src.data.uniprot import build_annotated_dataset, load_annotations  # noqa: E402
 from src.evaluation.metrics import (  # noqa: E402
+    DEFAULT_THRESHOLD_GRID,
     macro_prf,
     micro_prf,
     select_threshold_micro_f1,
@@ -178,6 +179,26 @@ def load_training_annotations(args: argparse.Namespace):
         force=args.rebuild_cache,
     )
     return frame, path, f"UniProt release {args.release} ({args.evidence_policy} evidence)"
+
+
+def at_search_floor(threshold: float) -> bool:
+    """Return True when the chosen threshold sits at the bottom of the grid.
+
+    A floor threshold means the score distribution is too low to separate
+    positives from negatives, so the resulting metrics are uninformative.
+    """
+    return threshold <= float(DEFAULT_THRESHOLD_GRID.min()) + 1e-9
+
+
+def build_run_tag(args: argparse.Namespace, max_proteins: int | None) -> str:
+    """Return the artifact tag encoding every setting that changes the label space.
+
+    Without the vocabulary part, two runs differing only in ``--min-term-count``
+    or ``--top-terms`` silently overwrite each other's model and metrics.
+    """
+    size = f"{args.n_proteins}" if max_proteins else "full"
+    cap = args.top_terms if args.top_terms > 0 else "all"
+    return f"{args.label_source}_{size}_{args.aspect}_mc{args.min_term_count}_k{cap}"
 
 
 def detect_release() -> tuple[str, str]:
@@ -447,6 +468,15 @@ def main() -> None:
         threshold, val_f1 = 0.5, 0.0
         threshold_source = "fixed default"
 
+    at_threshold_floor = at_search_floor(threshold)
+    if at_threshold_floor:
+        print(
+            "   WARNING: the best threshold sits at the search floor "
+            f"({DEFAULT_THRESHOLD_GRID.min():.2f}); the score distribution is too low "
+            "to separate positives from negatives. Treat these metrics as "
+            "uninformative, not as a model result."
+        )
+
     test_probs = model.predict_proba(X_test)
     test_pred = (test_probs >= threshold).astype(np.int8)
     micro = micro_prf(y_test, test_pred)
@@ -463,9 +493,8 @@ def main() -> None:
     )
 
     # 10. Save model + metrics with provenance.
-    tag = f"{args.n_proteins}" if max_proteins else "full"
-    artifact_base = f"baseline_model_{args.label_source}_{tag}_{args.aspect}"
-    model_path = model.save(get_artifacts_dir() / f"{artifact_base}.joblib")
+    run_tag = build_run_tag(args, max_proteins)
+    model_path = model.save(get_artifacts_dir() / f"baseline_model_{run_tag}.joblib")
 
     metrics = {
         "config": {
@@ -500,13 +529,15 @@ def main() -> None:
             "value": threshold,
             "source": threshold_source,
             "validation_micro_f1": val_f1,
+            "at_search_floor": at_threshold_floor,
+            "search_floor": float(DEFAULT_THRESHOLD_GRID.min()),
         },
         "test": {
             "micro": micro,
             "macro": macro,
         },
     }
-    metrics_path = get_artifacts_dir() / f"baseline_metrics_{args.label_source}_{tag}_{args.aspect}.json"
+    metrics_path = get_artifacts_dir() / f"baseline_metrics_{run_tag}.json"
     with open(metrics_path, "w", encoding="utf-8") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)
         handle.write("\n")

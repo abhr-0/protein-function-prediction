@@ -7,6 +7,12 @@ the Phase 1 sanity check. Hierarchy-aware CAFA metrics are added in Phase 2.
 import numpy as np
 import scipy.sparse as sp
 
+# Threshold grid for micro-F1 selection. Deliberately excludes 0.0:
+# "score >= 0" predicts every label, and under heavy label imbalance that
+# uninformative all-positive classifier can *maximize* micro-F1 (observed:
+# F1 0.012 with precision 0.006 on a 287-term label space).
+DEFAULT_THRESHOLD_GRID = np.arange(0.05, 1.0, 0.01)
+
 
 def _to_dense(matrix) -> np.ndarray:
     if sp.issparse(matrix):
@@ -90,6 +96,11 @@ def select_threshold_micro_f1(
 
     Ties are broken by the threshold closest to 0.5, then by the lower
     threshold, so the result is deterministic.
+
+    The default grid excludes both 0.0 and 1.0: 0.0 predicts every label, which
+    can "win" on micro-F1 when labels are extremely sparse, and 1.0 predicts
+    nothing. A returned threshold at the floor of the grid is a warning sign,
+    not a result — see ``DEFAULT_THRESHOLD_GRID``.
     """
     true = _to_dense(y_true).astype(bool)
     score = _to_dense(y_score)
@@ -97,7 +108,7 @@ def select_threshold_micro_f1(
         raise ValueError(f"Shape mismatch: y_true {true.shape} vs y_score {score.shape}")
 
     if thresholds is None:
-        thresholds = np.linspace(0.0, 1.0, 101)
+        thresholds = DEFAULT_THRESHOLD_GRID
 
     if true.sum() == 0:
         return 0.5, 0.0

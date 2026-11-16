@@ -1,9 +1,11 @@
 """Tests for basic multi-label metrics and threshold selection."""
 
 import numpy as np
+import pytest
 import scipy.sparse as sp
 
 from src.evaluation.metrics import (
+    DEFAULT_THRESHOLD_GRID,
     macro_prf,
     micro_prf,
     prf_from_counts,
@@ -93,3 +95,45 @@ def test_select_threshold_rejects_shape_mismatch():
         assert "Shape mismatch" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("Expected ValueError")
+
+
+def test_default_threshold_grid_excludes_degenerate_extremes():
+    """0.0 (predict everything) and 1.0 (predict nothing) must not be selectable.
+
+    Regression test: with a 287-term sparse label space, "score >= 0" predicted
+    every label and won on micro-F1 (precision 0.006).
+    """
+    assert DEFAULT_THRESHOLD_GRID.min() > 0.0
+    assert DEFAULT_THRESHOLD_GRID.max() < 1.0
+
+
+def test_select_threshold_avoids_predict_everything():
+    """Near-zero scores must yield few predictions, not an all-positive flood.
+
+    With a strictly positive grid the floor threshold (0.05) predicts nothing
+    here, so the chosen F1 is 0 rather than a misleading all-positive win.
+    """
+    rng = np.random.default_rng(0)
+    y_true = (rng.random((50, 20)) < 0.02).astype(int)
+    y_score = rng.random((50, 20)) * 0.01  # every score below the grid floor
+
+    threshold, f1 = select_threshold_micro_f1(y_true, y_score)
+
+    # No threshold on the grid can reach any score, so nothing is predicted.
+    assert f1 == 0.0
+    assert (y_score >= threshold).sum() == 0
+    # Crucially, 0.0 is unreachable by default, so the run cannot degenerate
+    # into an all-positive classifier.
+    assert threshold >= DEFAULT_THRESHOLD_GRID.min()
+
+
+def test_select_threshold_honours_explicit_grid():
+    """Callers may still pass their own grid, including 0.0, deliberately."""
+    y_true = np.array([[1, 0]])
+    y_score = np.array([[0.01, 0.0]])
+
+    explicit = np.array([0.0, 0.5, 0.9])
+    threshold, f1 = select_threshold_micro_f1(y_true, y_score, thresholds=explicit)
+
+    assert threshold == 0.0
+    assert f1 == pytest.approx(2 / 3)
