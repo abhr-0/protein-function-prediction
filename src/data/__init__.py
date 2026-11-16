@@ -8,6 +8,12 @@ from src.data.annotations import (
     stream_uniprot_go_annotations,
     summarize_annotations,
 )
+from src.data.targets import (
+    count_protein_terms,
+    filter_terms,
+    select_target_terms,
+    vocabulary_coverage,
+)
 from src.data.uniprot import (
     UniProtRecord,
     build_annotated_dataset,
@@ -32,4 +38,8 @@ __all__ = [
     "load_uniprot_go_annotations",
     "resolve_excluded_evidence",
     "summarize_annotations",
+    "count_protein_terms",
+    "select_target_terms",
+    "filter_terms",
+    "vocabulary_coverage",
 ]
