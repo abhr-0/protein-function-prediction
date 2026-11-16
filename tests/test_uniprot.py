@@ -9,7 +9,6 @@ import pytest
 from src.data.uniprot import (
     UniProtRecord,
     build_annotated_dataset,
-    create_annotated_dataset,
     load_annotations,
     load_information_accretion,
     normalize_aspect,
@@ -100,18 +99,18 @@ def test_load_annotations_synthetic(tmp_path: Path):
     terms_file.write_text(data)
 
     # Filter for MF (F)
-    df, terms = load_annotations(terms_file, aspect="F")
+    df = load_annotations(terms_file, aspect="F")
     assert len(df) == 3
-    assert set(terms) == {"GO:0001", "GO:0002"}
+    assert set(df["term"]) == {"GO:0001", "GO:0002"}
 
-    # Top-1 term filter
-    df_top1, terms_top1 = load_annotations(terms_file, aspect="F", top_k_terms=1)
-    assert terms_top1 == ["GO:0001"]
-    assert len(df_top1) == 2
+    # No aspect filter keeps every row
+    df_all = load_annotations(terms_file)
+    assert len(df_all) == 5
+    assert set(df_all["aspect"]) == {"F", "P", "C"}
 
 
-def test_create_annotated_dataset_synthetic(tmp_path: Path):
-    """Test alignment of synthetic sequences and annotations."""
+def test_production_path_load_then_build(tmp_path: Path):
+    """CAFA labels flow through load_annotations -> build_annotated_dataset."""
     fasta_file = tmp_path / "test.fasta"
     fasta_file.write_text(
         ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
@@ -128,49 +127,22 @@ def test_create_annotated_dataset_synthetic(tmp_path: Path):
         "P1\tGO:0001\tF\n"
         "P1\tGO:0002\tF\n"
         "P2\tGO:0001\tF\n"
+        "P2\tGO:0003\tP\n"
+        "P2\tGO:0004\tC\n"
     )
 
-    df, target_terms = create_annotated_dataset(
-        fasta_path=fasta_file,
-        terms_path=terms_file,
-        aspect="F",
-        max_proteins=None,
-    )
+    # aspect=None keeps all aspects
+    annotations = load_annotations(terms_file)
+    df = build_annotated_dataset(fasta_file, annotations)
+    assert set(df["EntryID"]) == {"P1", "P2"}  # P3 has no annotations
+    p2_terms = df[df["EntryID"] == "P2"].iloc[0]["terms"]
+    assert p2_terms == ["GO:0001", "GO:0003", "GO:0004"]
 
-    assert len(df) == 2
-    assert "P3" not in df["EntryID"].values
-    p1_row = df[df["EntryID"] == "P1"].iloc[0]
-    assert p1_row["terms"] == ["GO:0001", "GO:0002"]
-    assert p1_row["length"] == 20
-    assert target_terms == ["GO:0001", "GO:0002"]
-
-
-def test_create_annotated_dataset_default_all_aspects(tmp_path: Path):
-    """Verify create_annotated_dataset defaults to aspect=None and includes all aspects."""
-    fasta_file = tmp_path / "multi_aspect.fasta"
-    fasta_file.write_text(
-        ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
-        "ACDEFGHIKLMNPQRSTVWY\n"
-    )
-
-    terms_file = tmp_path / "multi_terms.tsv"
-    terms_file.write_text(
-        "EntryID\tterm\taspect\n"
-        "P1\tGO:0001\tF\n"
-        "P1\tGO:0002\tP\n"
-        "P1\tGO:0003\tC\n"
-    )
-
-    # Call with default aspect (None)
-    df, target_terms = create_annotated_dataset(
-        fasta_path=fasta_file,
-        terms_path=terms_file,
-        max_proteins=None,
-    )
-
-    assert len(df) == 1
-    assert set(target_terms) == {"GO:0001", "GO:0002", "GO:0003"}
-    assert set(df.iloc[0]["terms"]) == {"GO:0001", "GO:0002", "GO:0003"}
+    # aspect filter drops the other ontologies
+    annotations_f = load_annotations(terms_file, aspect="F")
+    df_f = build_annotated_dataset(fasta_file, annotations_f, aspect="F")
+    p2_terms_f = df_f[df_f["EntryID"] == "P2"].iloc[0]["terms"]
+    assert p2_terms_f == ["GO:0001"]
 
 
 def test_real_dataset_smoke():
@@ -195,16 +167,15 @@ def test_real_dataset_smoke():
     assert len(ia_dict) > 1000
     assert all(isinstance(v, float) for v in list(ia_dict.values())[:10])
 
-    # Create tiny dataset of 10 proteins
-    df, terms = create_annotated_dataset(
-        fasta_path=uniprot_path,
-        terms_path=terms_path,
+    # Create tiny dataset of 10 proteins through the production path
+    annotations = load_annotations(terms_path, aspect="F")
+    df = build_annotated_dataset(
+        uniprot_path,
+        annotations,
         aspect="F",
         max_proteins=10,
-        top_k_terms=50,
     )
     assert len(df) == 10
-    assert len(terms) == 50
     assert "sequence" in df.columns
     assert "terms" in df.columns
 
@@ -239,20 +210,18 @@ def test_build_annotated_dataset_generic(tmp_path: Path):
         ]
     )
 
-    df, target_terms = build_annotated_dataset(
+    df = build_annotated_dataset(
         fasta_file,
         annotations,
         target_terms=["GO:0001", "GO:0002"],
-        min_terms=1,
     )
 
-    assert target_terms == ["GO:0001", "GO:0002"]
     assert set(df["EntryID"]) == {"P1"}  # P2 only has GO:0003; P9 is absent
     assert df.iloc[0]["terms"] == ["GO:0001", "GO:0002"]
 
 
-def test_build_annotated_dataset_min_terms_and_aspect_filter(tmp_path: Path):
-    """min_terms and aspect filters should drop proteins with no selected terms."""
+def test_build_annotated_dataset_aspect_filter(tmp_path: Path):
+    """The aspect filter should restrict annotations to one ontology."""
     fasta_file = tmp_path / "test.fasta"
     fasta_file.write_text(
         ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
@@ -269,15 +238,10 @@ def test_build_annotated_dataset_min_terms_and_aspect_filter(tmp_path: Path):
         ]
     )
 
-    df, _ = build_annotated_dataset(
-        fasta_file,
-        annotations,
-        target_terms=["GO:0001", "GO:0002", "GO:0003"],
-        aspect="F",
-        min_terms=2,
-    )
+    df = build_annotated_dataset(fasta_file, annotations, aspect="F")
 
-    assert set(df["EntryID"]) == {"P1"}
+    assert set(df["EntryID"]) == {"P1", "P2"}
+    assert set(df[df["EntryID"] == "P2"].iloc[0]["terms"]) == {"GO:0003"}
 
 
 def test_build_annotated_dataset_seeded_sampling_is_deterministic(tmp_path: Path):
@@ -295,13 +259,13 @@ def test_build_annotated_dataset_seeded_sampling_is_deterministic(tmp_path: Path
 
     annotations = _synthetic_annotations([f"P{index:05d}" for index in range(10)])
 
-    first, _ = build_annotated_dataset(
+    first = build_annotated_dataset(
         fasta_file,
         annotations,
         max_proteins=5,
         sample_seed=42,
     )
-    second, _ = build_annotated_dataset(
+    second = build_annotated_dataset(
         fasta_file,
         annotations,
         max_proteins=5,
@@ -322,9 +286,8 @@ def test_build_annotated_dataset_empty_annotations(tmp_path: Path):
     )
     annotations = pd.DataFrame(columns=["EntryID", "term", "aspect"])
 
-    df, target_terms = build_annotated_dataset(fasta_file, annotations)
+    df = build_annotated_dataset(fasta_file, annotations)
 
-    assert target_terms == []
     assert len(df) == 0
     assert list(df.columns) == [
         "EntryID",

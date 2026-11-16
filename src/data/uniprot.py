@@ -142,19 +142,21 @@ def normalize_aspect(aspect: str) -> str:
 def load_annotations(
     terms_path: str | Path,
     aspect: str | None = None,
-    min_term_count: int | None = None,
-    top_k_terms: int | None = None,
-) -> tuple[pd.DataFrame, list[str]]:
-    """Load and optionally filter GO annotations from train_terms.tsv.
+) -> pd.DataFrame:
+    """Load GO annotations from a CAFA-style ``train_terms.tsv`` table.
+
+    This is pure I/O: there is deliberately **no** term filtering here. Term
+    vocabulary must be chosen on the training split only, via
+    :func:`src.data.targets.select_target_terms`, otherwise test proteins leak
+    into the label space.
 
     Args:
-        terms_path: Path to train_terms.tsv.
-        aspect: Optional filter ('F', 'P', or 'C').
-        min_term_count: Minimum frequency for a GO term to be included.
-        top_k_terms: Top K most frequent GO terms to keep.
+        terms_path: Path to a ``train_terms.tsv``-style file with columns
+            ``EntryID``, ``term``, ``aspect``.
+        aspect: Optional aspect filter ('F'/'MF', 'P'/'BP', 'C'/'CC').
 
     Returns:
-        tuple of (filtered_terms_dataframe, list_of_selected_terms)
+        DataFrame with the loaded annotations.
     """
     terms_file = Path(terms_path)
     if not terms_file.exists():
@@ -166,21 +168,7 @@ def load_annotations(
         normalized = normalize_aspect(aspect)
         df = df[df["aspect"] == normalized]
 
-    term_counts = df["term"].value_counts()
-
-    if min_term_count is not None:
-        valid_terms = term_counts[term_counts >= min_term_count].index
-        df = df[df["term"].isin(valid_terms)]
-        term_counts = term_counts[term_counts.index.isin(valid_terms)]
-
-    if top_k_terms is not None:
-        top_terms = term_counts.head(top_k_terms).index
-        df = df[df["term"].isin(top_terms)]
-        selected_terms = list(top_terms)
-    else:
-        selected_terms = list(term_counts.index)
-
-    return df, selected_terms
+    return df
 
 
 def load_information_accretion(ia_path: str | Path) -> dict[str, float]:
@@ -205,56 +193,49 @@ def build_annotated_dataset(
     aspect: str | None = None,
     max_proteins: int | None = None,
     sample_seed: int | None = None,
-    min_terms: int = 1,
     entry_col: str = "EntryID",
     term_col: str = "term",
     aspect_col: str = "aspect",
-) -> tuple[pd.DataFrame, list[str]]:
+) -> pd.DataFrame:
     """Align protein sequences with their GO annotations.
 
-    This is the source-agnostic builder. ``annotations`` may come from CAFA6
-    ``train_terms.tsv`` or from UniProt ``DR GO`` lines; the only requirement
-    is the tidy schema (``EntryID``, ``term``, ``aspect``).
+    This builder does alignment only. It applies no vocabulary filtering and no
+    zero-positive filtering, because both depend on a target vocabulary that
+    must be chosen on the training split *after* the split is made. Use
+    :func:`src.data.targets.select_target_terms` to choose the vocabulary and
+    :func:`src.data.targets.apply_vocabulary` to restrict the splits.
 
     Args:
         fasta_path: Path to plain or gzip-compressed FASTA.
         annotations: Tidy annotation frame.
-        target_terms: Optional target vocabulary. If provided, annotations are
-            restricted to these terms. If ``None``, all terms are used, ordered
-            by descending frequency.
+        target_terms: Optional vocabulary to restrict each protein's terms to.
+            ``None`` keeps every annotated term.
         aspect: Optional aspect filter applied to ``annotations``.
         max_proteins: Maximum number of proteins to return. ``None`` keeps all.
         sample_seed: If set, randomly sample up to ``max_proteins`` proteins
             across the full labeled set instead of taking the first N records
             in FASTA order.
-        min_terms: Minimum number of selected terms a protein must have to be
-            included (default: 1).
         entry_col: Accession column name in ``annotations``.
         term_col: GO term column name in ``annotations``.
         aspect_col: Aspect column name in ``annotations``.
 
     Returns:
-        ``(dataset_df, target_terms)`` where ``dataset_df`` has columns
-        ``EntryID``, ``entry_name``, ``organism``, ``sequence``, ``length``,
-        ``terms``.
+        DataFrame with columns ``EntryID``, ``entry_name``, ``organism``,
+        ``sequence``, ``length``, ``terms``.
     """
     if aspect is not None:
         normalized = normalize_aspect(aspect)
         annotations = annotations[annotations[aspect_col] == normalized]
 
-    if target_terms is None:
-        target_terms_list = list(annotations[term_col].value_counts().index)
-    else:
-        target_terms_list = list(target_terms)
-    term_set = set(target_terms_list)
+    term_set = set(target_terms) if target_terms is not None else None
 
     terms_grouped: dict[str, list[str]] = {}
     grouped = annotations.groupby(entry_col, observed=True)[term_col].agg(
         lambda values: sorted(set(values))
     )
     for entry_id, terms in grouped.items():
-        selected = [term for term in terms if term in term_set]
-        if len(selected) >= min_terms:
+        selected = [term for term in terms if term_set is None or term in term_set]
+        if selected:
             terms_grouped[str(entry_id)] = selected
 
     target_protein_ids = set(terms_grouped)
@@ -290,60 +271,4 @@ def build_annotated_dataset(
         matched_records,
         columns=["EntryID", "entry_name", "organism", "sequence", "length", "terms"],
     )
-    return df, target_terms_list
-
-
-def create_annotated_dataset(
-    fasta_path: str | Path,
-    terms_path: str | Path,
-    aspect: str | None = None,
-    max_proteins: int | None = 5000,
-    min_term_count: int | None = None,
-    top_k_terms: int | None = 300,
-) -> tuple[pd.DataFrame, list[str]]:
-    """Build a dataset from CAFA-style ``train_terms.tsv`` annotations.
-
-    This is the CAFA wrapper around :func:`build_annotated_dataset`. It keeps
-    only Swiss-Prot records whose accession is present in the CAFA annotation
-    table, so it is **not** a full Swiss-Prot training set. For that, use
-    :func:`build_annotated_dataset` with UniProt GO annotations.
-
-    Args:
-        fasta_path: Path to plain or gzip-compressed FASTA file.
-        terms_path: Path to annotations TSV with columns
-            ``(EntryID, term, aspect)``.
-        aspect: Optional Gene Ontology sub-ontology filter:
-            - 'F' or 'MF': Molecular Function (biochemical activity)
-            - 'P' or 'BP': Biological Process (cellular pathway / program)
-            - 'C' or 'CC': Cellular Component (subcellular localization)
-            - None (default): Retains all aspects jointly. When using a limited
-              `top_k_terms`, frequent Cellular Component terms may dominate the top
-              ranks; callers seeking balanced representation across all categories
-              can either set `top_k_terms=None` (filtering by `min_term_count`
-              instead) or call this function separately for each aspect.
-        max_proteins: Maximum number of annotated proteins to yield (None for all).
-        min_term_count: Minimum occurrence frequency for a GO term to be included.
-            Useful for pruning rare terms without aspect bias.
-        top_k_terms: Top K most frequent GO terms to retain (None for all).
-
-    Returns:
-        tuple of (dataset_df, target_terms_list):
-            - dataset_df: DataFrame with columns ['EntryID', 'entry_name',
-              'organism', 'sequence', 'length', 'terms']
-            - target_terms_list: Ordered list of unique target GO term IDs.
-    """
-    annotations_df, target_terms = load_annotations(
-        terms_path=terms_path,
-        aspect=aspect,
-        min_term_count=min_term_count,
-        top_k_terms=top_k_terms,
-    )
-
-    return build_annotated_dataset(
-        fasta_path=fasta_path,
-        annotations=annotations_df,
-        target_terms=target_terms,
-        max_proteins=max_proteins,
-        sample_seed=None,
-        min_terms=1,
-    )
+    return df

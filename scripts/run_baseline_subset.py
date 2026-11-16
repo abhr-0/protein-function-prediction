@@ -30,7 +30,7 @@ if str(project_root) not in sys.path:
 
 from src.data.annotations import load_uniprot_go_annotations  # noqa: E402
 from src.data.targets import (  # noqa: E402
-    filter_terms,
+    apply_vocabulary,
     select_target_terms,
     vocabulary_coverage,
 )
@@ -154,12 +154,7 @@ def load_training_annotations(args: argparse.Namespace):
     """Load the annotation table and return it with a human-readable description."""
     if args.label_source == "cafa":
         path = args.annotations_path or get_train_terms_path()
-        frame, _ = load_annotations(
-            terms_path=path,
-            aspect=args.aspect,
-            min_term_count=None,
-            top_k_terms=None,
-        )
+        frame = load_annotations(terms_path=path, aspect=args.aspect)
         return frame, path, "CAFA6 train_terms"
 
     path = args.annotations_path or get_uniprot_dat_path()
@@ -181,14 +176,6 @@ def load_training_annotations(args: argparse.Namespace):
         force=args.rebuild_cache,
     )
     return frame, path, f"UniProt release {args.release} ({args.evidence_policy} evidence)"
-
-
-def filter_split(frame, target_terms, min_terms: int):
-    """Restrict terms to the target vocabulary and drop zero-positive proteins."""
-    filtered = frame.copy()
-    filtered["terms"] = filter_terms(filtered["terms"].tolist(), target_terms)
-    filtered = filtered[filtered["terms"].map(len) >= min_terms].reset_index(drop=True)
-    return filtered
 
 
 def main() -> None:
@@ -226,14 +213,12 @@ def main() -> None:
     # 2. Build the sequence + all-terms dataset.
     t0 = time.time()
     print("2. Aligning sequences with annotations...")
-    df, _ = build_annotated_dataset(
+    df = build_annotated_dataset(
         fasta_path=get_uniprot_path(),
         annotations=annotations_df,
-        target_terms=None,
         aspect=args.aspect,
         max_proteins=max_proteins,
         sample_seed=sample_seed,
-        min_terms=1,
     )
     matched_ids = set(df["EntryID"].astype(str))
     unmatched_ids = labeled_ids - matched_ids
@@ -300,12 +285,31 @@ def main() -> None:
     )
 
     # 5. Restrict terms and drop zero-positive proteins.
-    train_df = filter_split(train_df, target_terms, args.min_terms)
-    val_df = filter_split(val_df, target_terms, args.min_terms) if len(val_df) else val_df
-    test_df = filter_split(test_df, target_terms, args.min_terms)
+    #    Vocabulary was chosen on raw train terms above; apply it to every split
+    #    and never re-select it afterwards.
+    train_df, train_vocab_stats = apply_vocabulary(
+        train_df, target_terms, min_terms=args.min_terms
+    )
+    val_vocab_stats = None
+    if len(val_df):
+        val_df, val_vocab_stats = apply_vocabulary(
+            val_df, target_terms, min_terms=args.min_terms
+        )
+    test_df, test_vocab_stats = apply_vocabulary(
+        test_df, target_terms, min_terms=args.min_terms
+    )
+    vocab_stats = {"train": train_vocab_stats, "test": test_vocab_stats}
+    if val_vocab_stats is not None:
+        vocab_stats["val"] = val_vocab_stats
     print(
         f"5. After term filtering: Train {len(train_df):,} | "
         f"Val {len(val_df):,} | Test {len(test_df):,}"
+    )
+    print(
+        f"   Dropped (fewer than {args.min_terms} in-vocabulary term(s)): "
+        f"Train {train_vocab_stats['proteins_dropped']:,} | "
+        f"Val {0 if val_vocab_stats is None else val_vocab_stats['proteins_dropped']:,} | "
+        f"Test {test_vocab_stats['proteins_dropped']:,}"
     )
     if len(train_df) == 0 or len(test_df) == 0:
         raise ValueError("No proteins remain after term filtering; loosen the vocabulary filters.")
@@ -414,6 +418,7 @@ def main() -> None:
             "target_terms": len(target_terms),
         },
         "coverage": coverage,
+        "vocabulary_filtering": vocab_stats,
         "threshold": {
             "value": threshold,
             "source": threshold_source,

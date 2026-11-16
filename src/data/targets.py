@@ -8,6 +8,8 @@ the label space.
 from collections import Counter
 from collections.abc import Collection, Iterable, Sequence
 
+import pandas as pd
+
 
 def count_protein_terms(protein_terms: Iterable[Collection[str]]) -> Counter[str]:
     """Count how many proteins are annotated with each GO term.
@@ -101,3 +103,57 @@ def vocabulary_coverage(
         "covered_pairs": covered_pairs,
         "annotation_coverage": round(annotation_coverage, 6),
     }
+
+
+def apply_vocabulary(
+    frame: pd.DataFrame,
+    vocabulary: Collection[str],
+    *,
+    min_terms: int = 1,
+    terms_col: str = "terms",
+) -> tuple[pd.DataFrame, dict[str, int]]:
+    """Restrict each protein's terms to the target vocabulary, dropping empties.
+
+    This is the only place the "no zero-positive rows" invariant is enforced.
+    It must run *after* the train/test split and *after* the vocabulary has been
+    chosen on the training split: a protein is zero-positive only relative to a
+    vocabulary, so a dataset builder that runs before the split cannot enforce
+    it.
+
+    Order matters. Select the vocabulary on the raw training terms, then apply
+    it to every split. Do not re-select the vocabulary after dropping
+    zero-positive proteins, because that silently changes the label space.
+
+    Args:
+        frame: Dataset frame with a per-protein term-list column.
+        vocabulary: Target GO terms, e.g. from :func:`select_target_terms`.
+        min_terms: Minimum number of in-vocabulary terms a protein must retain
+            (default: 1, i.e. drop only zero-positive proteins).
+        terms_col: Name of the term-list column.
+
+    Returns:
+        ``(filtered_frame, stats)``. ``stats`` records how many proteins and
+        annotation pairs were dropped, so callers can report the effect instead
+        of silently shrinking the data.
+    """
+    if min_terms < 1:
+        raise ValueError(f"min_terms must be >= 1, got {min_terms}")
+
+    restricted = frame.copy()
+    restricted[terms_col] = filter_terms(
+        restricted[terms_col].tolist(),
+        vocabulary,
+    )
+    pairs_in = int(sum(len(set(terms)) for terms in frame[terms_col]))
+    keep_mask = restricted[terms_col].map(len) >= min_terms
+    kept = restricted[keep_mask].reset_index(drop=True)
+
+    stats = {
+        "min_terms": int(min_terms),
+        "proteins_in": int(len(frame)),
+        "proteins_kept": int(len(kept)),
+        "proteins_dropped": int(len(frame) - len(kept)),
+        "annotation_pairs_in": pairs_in,
+        "annotation_pairs_kept": int(sum(len(terms) for terms in kept[terms_col])),
+    }
+    return kept, stats

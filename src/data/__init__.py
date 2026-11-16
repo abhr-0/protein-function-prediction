@@ -9,6 +9,7 @@ from src.data.annotations import (
     summarize_annotations,
 )
 from src.data.targets import (
+    apply_vocabulary,
     count_protein_terms,
     filter_terms,
     select_target_terms,
@@ -17,7 +18,6 @@ from src.data.targets import (
 from src.data.uniprot import (
     UniProtRecord,
     build_annotated_dataset,
-    create_annotated_dataset,
     load_annotations,
     load_information_accretion,
     parse_uniprot_header,
@@ -31,7 +31,6 @@ __all__ = [
     "load_annotations",
     "load_information_accretion",
     "build_annotated_dataset",
-    "create_annotated_dataset",
     "GoAnnotation",
     "parse_uniprot_go_line",
     "stream_uniprot_go_annotations",
@@ -41,5 +40,6 @@ __all__ = [
     "count_protein_terms",
     "select_target_terms",
     "filter_terms",
+    "apply_vocabulary",
     "vocabulary_coverage",
 ]

@@ -13,7 +13,7 @@ import gzip
 import os
 import tempfile
 from collections.abc import Collection, Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pandas as pd
@@ -128,12 +128,7 @@ def stream_uniprot_go_annotations(
                     continue
                 if aspect_set is not None and annotation.aspect not in aspect_set:
                     continue
-                yield GoAnnotation(
-                    entry_id=current_entry,
-                    term=annotation.term,
-                    aspect=annotation.aspect,
-                    evidence=annotation.evidence,
-                )
+                yield replace(annotation, entry_id=current_entry)
             elif line.startswith("//"):
                 current_entry = None
 
@@ -170,7 +165,7 @@ def load_uniprot_go_annotations(
     cache = Path(cache_path) if cache_path is not None else None
 
     if cache is not None and cache.is_file() and not force:
-        frame = _read_annotation_cache(cache)
+        frame = _read_annotation_tsv(cache)
     else:
         frame = _build_annotation_frame(
             path,
@@ -233,10 +228,6 @@ def _read_annotation_tsv(path: Path) -> pd.DataFrame:
             "evidence": "category",
         },
     )
-
-
-def _read_annotation_cache(path: Path) -> pd.DataFrame:
-    return _read_annotation_tsv(path)
 
 
 def _save_annotation_cache(frame: pd.DataFrame, cache_path: Path) -> Path:
