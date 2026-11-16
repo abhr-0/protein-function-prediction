@@ -10,6 +10,7 @@ from src.utils.download import (
     DownloadRecord,
     download_file,
     load_manifest,
+    manifest_release,
     parse_release_version,
     save_manifest,
     sha256_file,
@@ -141,3 +142,31 @@ def test_validate_gzip_accepts_and_rejects(tmp_path: Path):
     bad.write_bytes(b"not gzip")
     with pytest.raises(ValueError):
         validate_gzip(bad)
+
+
+def test_manifest_release_prefers_flat_file_entry():
+    """The flat-file entry is the authoritative label release."""
+    manifest = {
+        "release": "2024_01",
+        "files": {
+            "uniprot_sprot.fasta.gz": {"release": "2025_06"},
+            "uniprot_sprot.dat.gz": {"release": "2026_04"},
+        },
+    }
+    assert manifest_release(manifest) == "2026_04"
+
+
+def test_manifest_release_falls_back_to_fasta_then_manifest_level():
+    """Missing entries should fall back rather than return None prematurely."""
+    fasta_only = {"files": {"uniprot_sprot.fasta.gz": {"release": "2025_06"}}}
+    assert manifest_release(fasta_only) == "2025_06"
+
+    top_level_only = {"release": "2024_01", "files": {}}
+    assert manifest_release(top_level_only) == "2024_01"
+
+
+def test_manifest_release_ignores_unknown():
+    """"unknown" must not be mistaken for a real release identifier."""
+    manifest = {"release": "unknown", "files": {"uniprot_sprot.dat.gz": {"release": "unknown"}}}
+    assert manifest_release(manifest) is None
+    assert manifest_release({}) is None

@@ -184,6 +184,28 @@ def save_manifest(manifest: dict, path: str | Path) -> Path:
     return manifest_path
 
 
+def manifest_release(manifest: dict) -> str | None:
+    """Return the UniProt release recorded in a provenance manifest.
+
+    Prefers the entry for the Swiss-Prot flat file, falls back to the FASTA
+    entry, then to the manifest-level release. Returns ``None`` when nothing
+    usable is recorded, so callers never mistake ``"unknown"`` for a version.
+    """
+    entries = manifest.get("files", {})
+    for key in ("uniprot_sprot.dat.gz", "uniprot_sprot.fasta.gz"):
+        entry = entries.get(key)
+        if entry:
+            release = entry.get("release")
+            if release and release != "unknown":
+                return str(release)
+
+    release = manifest.get("release")
+    if release and release != "unknown":
+        return str(release)
+    return None
+
+
+
 def _open_url(url: str, timeout: int):
     request = Request(url, headers={"User-Agent": USER_AGENT})
     if urlparse(url).scheme == "https":

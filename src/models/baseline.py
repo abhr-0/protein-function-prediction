@@ -243,6 +243,13 @@ class BaselineProteinClassifier(BaseEstimator, ClassifierMixin):
             )
 
         n_classes = y.shape[1] if y.ndim > 1 else 1
+        if y.ndim > 1 and n_classes < 2:
+            raise ValueError(
+                "Multi-label training needs at least 2 target columns, got 1. With a "
+                "single column, sklearn treats the task as multiclass and fails on "
+                "sparse input (unhashable type: 'csr_matrix'). A one-term vocabulary "
+                "is degenerate: lower the term frequency threshold or use more proteins."
+            )
         self.n_classes_ = n_classes
 
         if target_terms is not None:

@@ -11,8 +11,11 @@ Examples:
     # CAFA6 labels for a controlled comparison
     .venv/bin/python scripts/run_baseline_subset.py --label-source cafa --n-proteins 5000
 
-    # Full label space for a tight dev run
-    .venv/bin/python scripts/run_baseline_subset.py --n-proteins 2000 --min-term-count 20 --top-terms 0
+    # Widen the label space: terms seen in >=2 training proteins, no term cap
+    .venv/bin/python scripts/run_baseline_subset.py --n-proteins 20000 --min-term-count 2
+
+    # Narrow it: at most 50 terms, each seen in >=20 training proteins
+    .venv/bin/python scripts/run_baseline_subset.py --top-terms 50 --min-term-count 20
 """
 
 import argparse
@@ -46,9 +49,11 @@ from src.models.baseline import (  # noqa: E402
     build_target_matrix,
     split_by_entry_id,
 )
+from src.utils.download import load_manifest, manifest_release  # noqa: E402
 from src.utils.paths import (  # noqa: E402
     get_annotations_cache_path,
     get_artifacts_dir,
+    get_data_manifest_path,
     get_train_terms_path,
     get_uniprot_dat_path,
     get_uniprot_path,
@@ -59,13 +64,17 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train and evaluate the baseline classifier on Swiss-Prot proteins."
     )
+    advanced = parser.add_argument_group(
+        "advanced",
+        "Escape hatches for alternate inputs and cache maintenance.",
+    )
     parser.add_argument(
         "--label-source",
         choices=["uniprot", "cafa"],
         default="uniprot",
         help="Training labels: UniProt DR GO lines (default) or CAFA6 train_terms.tsv.",
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--annotations-path",
         type=Path,
         default=None,
@@ -80,14 +89,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--top-terms",
         type=int,
-        default=50,
-        help="Maximum target GO terms from the training split (0 means no cap).",
+        default=0,
+        help="Maximum target GO terms from the training split (0 means no cap, "
+        "default: 0).",
     )
     parser.add_argument(
         "--min-term-count",
         type=int,
-        default=1,
-        help="Minimum number of training proteins a GO term must appear in.",
+        default=20,
+        help="Minimum number of training proteins a GO term must appear in "
+        "(default: 20).",
     )
     parser.add_argument(
         "--min-terms",
@@ -114,35 +125,26 @@ def parse_args() -> argparse.Namespace:
         help="Fraction of proteins for the validation set (default: 0.1).",
     )
     parser.add_argument(
-        "--random-state",
+        "--seed",
         type=int,
         default=42,
-        help="Seed for the train/val/test split and model (default: 42).",
+        help="Seed for protein sampling, the train/val/test split, and the model "
+        "(default: 42).",
     )
     parser.add_argument(
-        "--sample-seed",
-        type=int,
-        default=42,
-        help="Seed for random protein sampling; -1 disables sampling (first N in FASTA order).",
+        "--no-sampling",
+        action="store_true",
+        help="Take the first N annotated proteins in FASTA order instead of a "
+        "seeded random sample. Biased by accession and organism; off by default.",
     )
     parser.add_argument(
         "--evidence-policy",
         choices=["cafa", "full"],
-        default="cafa",
-        help="UniProt evidence filter: cafa excludes IEA/ND/NR; full keeps IEA.",
-    )
-    parser.add_argument(
-        "--release",
-        default="2026_04",
-        help="UniProt release label for the annotation cache (default: 2026_04).",
-    )
-    parser.add_argument(
-        "--cache-path",
-        type=Path,
         default=None,
-        help="Override the UniProt annotation cache path.",
+        help="UniProt evidence filter: cafa excludes IEA/ND/NR (default); full "
+        "keeps IEA. Ignored when --label-source cafa.",
     )
-    parser.add_argument(
+    advanced.add_argument(
         "--rebuild-cache",
         action="store_true",
         help="Rebuild the annotation cache from the flat file.",
@@ -164,7 +166,7 @@ def load_training_annotations(args: argparse.Namespace):
             "Run: .venv/bin/python scripts/download_data.py"
         )
 
-    cache_path = args.cache_path or get_annotations_cache_path(
+    cache_path = get_annotations_cache_path(
         release=args.release,
         evidence_policy=args.evidence_policy,
     )
@@ -178,16 +180,78 @@ def load_training_annotations(args: argparse.Namespace):
     return frame, path, f"UniProt release {args.release} ({args.evidence_policy} evidence)"
 
 
+def detect_release() -> tuple[str, str]:
+    """Return the UniProt release label recorded in the data manifest.
+
+    The release is a property of the downloaded bytes, not of the training run,
+    so it is read from provenance rather than accepted on the command line: a
+    user-supplied label could silently disagree with the data actually used.
+
+    Returns:
+        ``(release, source)``; ``release`` is ``"unknown"`` when nothing usable
+        is recorded.
+    """
+    try:
+        detected = manifest_release(load_manifest(get_data_manifest_path()))
+    except (OSError, ValueError):
+        detected = None
+    if detected:
+        return detected, "data manifest"
+    return "unknown", "not recorded"
+
+
+def build_warnings(
+    args: argparse.Namespace,
+    *,
+    explicit_evidence_policy: bool,
+) -> list[str]:
+    """Return non-fatal configuration warnings shown in the run header."""
+    warnings: list[str] = []
+    if args.label_source == "cafa" and explicit_evidence_policy:
+        warnings.append(
+            "--evidence-policy is ignored with --label-source cafa "
+            "(CAFA labels carry no evidence codes)"
+        )
+    if args.n_proteins <= 0:
+        warnings.append(
+            "--n-proteins <= 0 trains on the FULL Swiss-Prot corpus (576k proteins): "
+            "this needs hours for OvR training and a very large label space"
+        )
+    if args.no_sampling:
+        warnings.append(
+            "--no-sampling takes proteins in FASTA order, which is biased by "
+            "accession and organism"
+        )
+    if args.release == "unknown":
+        warnings.append(
+            "UniProt release is unknown; the annotation cache and metrics provenance "
+            "will record 'unknown'"
+        )
+    return warnings
+
+
 def main() -> None:
     args = parse_args()
+    explicit_evidence_policy = args.evidence_policy is not None
 
     if args.min_terms < 1:
         raise ValueError("--min-terms must be at least 1")
     if args.min_term_count < 1:
         raise ValueError("--min-term-count must be at least 1")
+    if args.top_terms < 0:
+        raise ValueError("--top-terms must be >= 0 (0 means no cap)")
+
+    args.release, release_source = detect_release()
+    if args.evidence_policy is None:
+        args.evidence_policy = "cafa"
+
+    warnings = build_warnings(
+        args,
+        explicit_evidence_policy=explicit_evidence_policy,
+    )
 
     max_proteins = args.n_proteins if args.n_proteins > 0 else None
-    sample_seed = None if args.sample_seed < 0 else args.sample_seed
+    sample_seed = None if args.no_sampling else args.seed
     dataset_label = f"{args.n_proteins} proteins" if max_proteins else "FULL DATASET"
 
     print("=" * 78)
@@ -197,7 +261,17 @@ def main() -> None:
     print(f"Dataset target: {dataset_label}")
     print(f"Aspect:         {args.aspect}")
     print(f"Test/val split: {args.test_size:.0%} / {args.val_size:.0%}")
-    print(f"Sampling seed:  {args.sample_seed}")
+    print(
+        f"Seed:           {args.seed}"
+        + (" (sampling disabled: first N in FASTA order)" if args.no_sampling else "")
+    )
+    print(f"Vocabulary:     min_count={args.min_term_count}, "
+          f"top_k={'no cap' if args.top_terms == 0 else args.top_terms}")
+    if args.label_source == "uniprot":
+        print(f"Release:        {args.release} ({release_source})")
+        print(f"Evidence:       {args.evidence_policy}")
+    for warning in warnings:
+        print(f"WARNING:        {warning}")
     print("-" * 78)
 
     # 1. Load labels.
@@ -246,13 +320,13 @@ def main() -> None:
             df,
             test_size=args.test_size,
             val_size=args.val_size,
-            random_state=args.random_state,
+            random_state=args.seed,
         )
     else:
         train_df, test_df = split_by_entry_id(
             df,
             test_size=args.test_size,
-            random_state=args.random_state,
+            random_state=args.seed,
         )
         val_df = df.iloc[0:0].copy()
     print(f"   Train: {len(train_df):,} | Val: {len(val_df):,} | Test: {len(test_df):,}")
@@ -264,10 +338,12 @@ def main() -> None:
         min_count=args.min_term_count,
         top_k=top_k,
     )
-    if not target_terms:
+    if len(target_terms) < 2:
         raise ValueError(
-            "No target terms survived frequency filtering. "
-            "Lower --min-term-count or increase --n-proteins."
+            f"Only {len(target_terms)} target term(s) survived min_count="
+            f"{args.min_term_count}. A multi-label run needs at least 2, so this "
+            "configuration is degenerate. Lower --min-term-count or increase "
+            "--n-proteins."
         )
 
     coverage = {
@@ -357,7 +433,7 @@ def main() -> None:
     model = BaselineProteinClassifier(
         target_terms=target_terms,
         n_jobs=-1,
-        random_state=args.random_state,
+        random_state=args.seed,
     )
     model.fit(X_train, y_train)
     print(f"   Training time: {time.time() - t0:.2f}s")
@@ -398,12 +474,13 @@ def main() -> None:
             "label_description": label_description,
             "evidence_policy": args.evidence_policy if args.label_source == "uniprot" else None,
             "release": args.release if args.label_source == "uniprot" else None,
+            "release_source": release_source if args.label_source == "uniprot" else None,
             "aspect": args.aspect,
             "n_proteins_requested": args.n_proteins,
-            "sample_seed": args.sample_seed,
+            "seed": args.seed,
+            "random_sampling": not args.no_sampling,
             "test_size": args.test_size,
             "val_size": args.val_size,
-            "random_state": args.random_state,
             "min_terms": args.min_terms,
             "min_term_count": args.min_term_count,
             "top_terms": args.top_terms,

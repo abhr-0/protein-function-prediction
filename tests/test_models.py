@@ -222,3 +222,17 @@ def test_baseline_pipeline_integration():
     top_predictions = model.predict_top_k(X_new, k=2)
     assert len(top_predictions) == 1
     assert len(top_predictions[0]) == 2
+
+
+def test_fit_rejects_single_column_target():
+    """A one-term vocabulary is degenerate and must fail with guidance.
+
+    Regression test: sklearn treats a single-column target as multiclass and
+    crashed while iterating a sparse matrix (unhashable type: 'csr_matrix').
+    """
+    X = sp.csr_matrix([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    y = sp.csr_matrix([[1], [0], [1]])
+
+    model = BaselineProteinClassifier(target_terms=["GO:0001"])
+    with pytest.raises(ValueError, match="at least 2 target columns"):
+        model.fit(X, y)
