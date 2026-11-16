@@ -17,6 +17,18 @@ def test_uniprot_data_paths():
     assert get_uniprot_dat_path().parent == get_uniprot_path().parent
 
 
+def test_data_files_are_grouped_by_source():
+    """UniProt files share a directory; the GO ontology has its own.
+
+    The ontology is published by the GO Consortium on its own release cadence,
+    so co-locating it with UniProt data would imply the wrong provenance.
+    """
+    assert get_uniprot_path().parent.name == "uniprot"
+    assert get_go_obo_path().parent.name == "go"
+    assert get_go_obo_path().parent != get_uniprot_path().parent
+    assert get_uniprot_path().parent.parent == get_go_obo_path().parent.parent
+
+
 def test_data_manifest_path_is_under_artifacts():
     """The provenance manifest should live with other generated artifacts."""
     manifest = get_data_manifest_path()

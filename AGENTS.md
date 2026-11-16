@@ -11,12 +11,12 @@
 The objective of this project is to build an AI-based system that predicts biological functions (Gene Ontology terms: Molecular Function `MF`, Biological Process `BP`, Cellular Component `CC`) directly from protein amino-acid sequences.
 
 ### Primary Dataset: UniProtKB / Swiss-Prot
-The project operates directly on the **UniProtKB/Swiss-Prot** dataset ([`uniprot_sprot.fasta.gz`](./uniprot_sprot.fasta.gz)):
+The project operates directly on the **UniProtKB/Swiss-Prot** dataset (`data/uniprot/uniprot_sprot.fasta.gz`):
 - **Scope:** 576,073 high-quality, manually reviewed, non-redundant protein sequences (UniProt release 2026_04).
 - **FASTA Header Schema:** `>db|Accession|EntryName Description OS=Organism OX=TaxonID [GN=Gene] PE=Evidence SV=Version`
   - Example: `>sp|Q6GZX4|001R_FRG3G Putative transcription factor 001R OS=Frog virus 3 OX=654924 GN=FV3-001R PE=4 SV=1`
   - Primary Key (`EntryID`): The UniProt Accession ID (e.g., `Q6GZX4`).
-- **Annotations (primary):** Gene Ontology terms parsed from the UniProt flat file [`uniprot_sprot.dat.gz`](./uniprot_sprot.dat.gz) `DR GO` lines, from the **same release** as the FASTA (2026_04, 3,100,768 raw GO lines). Evidence policy `cafa` excludes `IEA`/`ND`/`NR`; `full` keeps `IEA`.
+- **Annotations (primary):** Gene Ontology terms parsed from the UniProt flat file `data/uniprot/uniprot_sprot.dat.gz` `DR GO` lines, from the **same release** as the FASTA (2026_04, 3,100,768 raw GO lines). Evidence policy `cafa` excludes `IEA`/`ND`/`NR`; `full` keeps `IEA`.
 - **Benchmark labels (secondary):** `cafa_6_protein_data/Train/train_terms.tsv` covers only 82,395 of 576,073 Swiss-Prot proteins (**14.3%**) and its test labels are withheld, so it is kept only as an optional comparison/submission mode — never as the default training source.
 
 ### Modeling Strategy
@@ -69,9 +69,11 @@ uv add <dependency>
 ```text
 protein-function-prediction/
 ├── data/                      # Unified data directory (gitignored)
-│   ├── uniprot_sprot.fasta.gz # Swiss-Prot sequences (2026_04)
-│   ├── uniprot_sprot.dat.gz   # Swiss-Prot flat file: DR GO labels + evidence codes
-│   ├── go-basic.obo           # GO graph for ancestor propagation (Phase 2)
+│   ├── uniprot/               # UniProt-published data (one source, one release)
+│   │   ├── uniprot_sprot.fasta.gz # Swiss-Prot sequences (2026_04)
+│   │   └── uniprot_sprot.dat.gz   # Swiss-Prot flat file: DR GO labels + evidence
+│   ├── go/                    # GO Consortium data (own release cadence)
+│   │   └── go-basic.obo       # GO graph for ancestor propagation (Phase 2)
 │   ├── cafa_6_protein_data/   # Optional comparison mode only
 │   │   ├── Train/
 │   │   │   ├── train_terms.tsv    # CAFA6 labels (14.3% Swiss-Prot coverage)
@@ -142,4 +144,4 @@ When writing code or planning changes in this repo, agents must adhere to the fo
 5. **Memory Discipline:**
    - Never load 576k dense feature vectors into memory simultaneously. Use chunked processing or sparse matrices.
 6. **Git Hygiene:**
-   - Keep `uniprot_sprot.fasta.gz`, `uniprot_sprot.dat.gz`, `go-basic.obo`, `data/artifacts/`, and cache files out of git commits. Track code, docs, and configurations only.
+   - Keep `data/uniprot/`, `data/go/`, `data/cafa_6_protein_data/`, `data/artifacts/`, and cache files out of git commits. Track code, docs, and configurations only.

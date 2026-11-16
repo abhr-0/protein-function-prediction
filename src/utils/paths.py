@@ -17,19 +17,37 @@ def get_data_dir() -> Path:
     return data_dir
 
 
+def get_uniprot_dir() -> Path:
+    """Return the directory holding UniProt-published data files."""
+    path = get_data_dir() / "uniprot"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def get_go_dir() -> Path:
+    """Return the directory holding Gene Ontology data files."""
+    path = get_data_dir() / "go"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 def get_uniprot_path() -> Path:
     """Return path to the UniProtKB/Swiss-Prot compressed FASTA."""
-    return get_data_dir() / "uniprot_sprot.fasta.gz"
+    return get_uniprot_dir() / "uniprot_sprot.fasta.gz"
 
 
 def get_uniprot_dat_path() -> Path:
     """Return path to the UniProtKB/Swiss-Prot flat-file archive (GO annotations)."""
-    return get_data_dir() / "uniprot_sprot.dat.gz"
+    return get_uniprot_dir() / "uniprot_sprot.dat.gz"
 
 
 def get_go_obo_path() -> Path:
-    """Return path to the Gene Ontology OBO graph (`go-basic.obo`)."""
-    return get_data_dir() / "go-basic.obo"
+    """Return path to the Gene Ontology OBO graph (`go-basic.obo`).
+
+    Lives under ``data/go`` rather than ``data/uniprot``: the ontology is
+    published by the GO Consortium on its own release cadence.
+    """
+    return get_go_dir() / "go-basic.obo"
 
 
 def get_data_manifest_path() -> Path:

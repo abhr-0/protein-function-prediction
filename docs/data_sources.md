@@ -7,9 +7,9 @@ provenance note are tracked.
 
 | File | Local path | Source | Size | Purpose |
 |---|---|---|---|---|
-| Swiss-Prot FASTA | `data/uniprot_sprot.fasta.gz` | [UniProt current release](https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz) | ~90 MB | Sequences |
-| Swiss-Prot flat file | `data/uniprot_sprot.dat.gz` | [UniProt current release](https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.dat.gz) | 668 MB | `DR GO` annotations with evidence codes |
-| GO ontology | `data/go-basic.obo` | [GO current release](https://purl.obolibrary.org/obo/go/go-basic.obo) | 31 MB | GO graph (`is_a`, `part_of`, `alt_id`) — see the note on two OBO copies below |
+| Swiss-Prot FASTA | `data/uniprot/uniprot_sprot.fasta.gz` | [UniProt current release](https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.fasta.gz) | ~90 MB | Sequences |
+| Swiss-Prot flat file | `data/uniprot/uniprot_sprot.dat.gz` | [UniProt current release](https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/complete/uniprot_sprot.dat.gz) | 668 MB | `DR GO` annotations with evidence codes |
+| GO ontology | `data/go/go-basic.obo` | [GO current release](https://purl.obolibrary.org/obo/go/go-basic.obo) | 31 MB | GO graph (`is_a`, `part_of`, `alt_id`) — see the note on two OBO copies below |
 | CAFA6 benchmark | `data/cafa_6_protein_data/` | CAFA6 download (**URL not yet recorded — see gaps**) | ~95 MB zip | Optional comparison mode, IA weights, submission format |
 
 Release: **UniProt 2026_04 (04-Nov-2026)**, 576,073 Swiss-Prot entries.
@@ -85,7 +85,7 @@ policy leaves plenty of labels; they do not confirm it matches CAFA.
 
 ## Two copies of `go-basic.obo`
 
-`data/go-basic.obo` (fresh, used for propagation) and
+`data/go/go-basic.obo` (fresh, used for propagation) and
 `data/cafa_6_protein_data/Train/go-basic.obo` (CAFA6's older snapshot) differ in
 vintage, and therefore in `alt_id` and obsolete-term handling. Rule: propagate
 with the **fresh** copy; use CAFA6's copy only when reproducing CAFA6's own
