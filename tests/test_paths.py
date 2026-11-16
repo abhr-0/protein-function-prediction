@@ -35,3 +35,14 @@ def test_annotations_cache_path_sanitizes_policy():
     """Spaces and slashes must not leak into the filename."""
     path = get_annotations_cache_path("2026_04", "No IEA/ND")
     assert path.name == "annotations_sprot_2026_04_no-iea-nd.tsv.gz"
+
+
+def test_annotations_cache_path_can_include_source_fingerprint():
+    """Different source files must not share one cache file."""
+    plain = get_annotations_cache_path("2026_04", "cafa")
+    keyed = get_annotations_cache_path("2026_04", "cafa", source_fingerprint="abc123")
+    other = get_annotations_cache_path("2026_04", "cafa", source_fingerprint="def456")
+
+    assert plain.name == "annotations_sprot_2026_04_cafa.tsv.gz"
+    assert keyed.name == "annotations_sprot_2026_04_cafa_abc123.tsv.gz"
+    assert len({plain, keyed, other}) == 3

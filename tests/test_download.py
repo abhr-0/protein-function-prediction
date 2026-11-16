@@ -9,6 +9,7 @@ import pytest
 from src.utils.download import (
     DownloadRecord,
     download_file,
+    file_fingerprint,
     load_manifest,
     manifest_release,
     parse_release_version,
@@ -170,3 +171,18 @@ def test_manifest_release_ignores_unknown():
     manifest = {"release": "unknown", "files": {"uniprot_sprot.dat.gz": {"release": "unknown"}}}
     assert manifest_release(manifest) is None
     assert manifest_release({}) is None
+
+
+def test_file_fingerprint_tracks_file_identity(tmp_path: Path):
+    """Fingerprints must be stable per file and change when it is rewritten."""
+    path = tmp_path / "source.dat"
+    path.write_bytes(b"first")
+
+    first = file_fingerprint(path)
+    assert first == file_fingerprint(path), "same file must fingerprint identically"
+
+    path.write_bytes(b"second version")
+    assert file_fingerprint(path) != first
+
+    with pytest.raises(FileNotFoundError):
+        file_fingerprint(tmp_path / "missing.dat")

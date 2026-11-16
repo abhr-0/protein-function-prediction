@@ -156,3 +156,26 @@ def test_pipeline_on_real_uniprot_records():
     assert X.shape[0] == 10
     # Ensure no NaN or Inf in the extracted features
     assert np.all(np.isfinite(X.data))
+
+
+def test_kmer_vocabulary_is_fitted_on_training_sequences_only():
+    """Unseen k-mers must not create feature columns after fitting.
+
+    The k-mer vocabulary and the physicochemical scaler are fitted on training
+    sequences; transforming unseen sequences may only reuse those columns.
+    """
+    pipeline = ProteinFeaturePipeline(
+        include_aac=False,
+        include_physicochemical=False,
+        include_kmers=True,
+        k=2,
+        kmer_min_df=1,
+        return_sparse=True,
+    )
+    X_train = pipeline.fit_transform(["ACDE", "ACDF"])
+    n_features = X_train.shape[1]
+
+    X_unseen = pipeline.transform(["WWWW"])
+
+    assert X_unseen.shape[1] == n_features
+    assert X_unseen.nnz == 0, "a sequence of unknown k-mers must be all zeros"

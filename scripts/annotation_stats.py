@@ -21,6 +21,7 @@ from src.data.annotations import (  # noqa: E402
     load_uniprot_go_annotations,
     summarize_annotations,
 )
+from src.utils.download import file_fingerprint  # noqa: E402
 from src.utils.paths import (  # noqa: E402
     get_annotations_cache_path,
     get_uniprot_dat_path,
@@ -77,6 +78,7 @@ def main() -> None:
     cache_path = args.cache_path or get_annotations_cache_path(
         release=args.release,
         evidence_policy=args.evidence_policy,
+        source_fingerprint=file_fingerprint(args.dat_path),
     )
 
     print(f"Flat file:       {args.dat_path}")

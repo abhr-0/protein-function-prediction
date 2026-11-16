@@ -32,11 +32,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from src.data.annotations import load_uniprot_go_annotations  # noqa: E402
-from src.data.targets import (  # noqa: E402
-    apply_vocabulary,
-    select_target_terms,
-    vocabulary_coverage,
-)
+from src.data.prepare import prepare_splits  # noqa: E402
 from src.data.uniprot import build_annotated_dataset, load_annotations  # noqa: E402
 from src.evaluation.metrics import (  # noqa: E402
     DEFAULT_THRESHOLD_GRID,
@@ -48,9 +44,12 @@ from src.features.pipeline import ProteinFeaturePipeline  # noqa: E402
 from src.models.baseline import (  # noqa: E402
     BaselineProteinClassifier,
     build_target_matrix,
-    split_by_entry_id,
 )
-from src.utils.download import load_manifest, manifest_release  # noqa: E402
+from src.utils.download import (  # noqa: E402
+    file_fingerprint,
+    load_manifest,
+    manifest_release,
+)
 from src.utils.paths import (  # noqa: E402
     get_annotations_cache_path,
     get_artifacts_dir,
@@ -74,6 +73,14 @@ def parse_args() -> argparse.Namespace:
         choices=["uniprot", "cafa"],
         default="uniprot",
         help="Training labels: UniProt DR GO lines (default) or CAFA6 train_terms.tsv.",
+    )
+    advanced.add_argument(
+        "--fasta-path",
+        type=Path,
+        default=None,
+        help="Sequences to use (default: data/uniprot_sprot.fasta.gz). Accepts any "
+        "UniProt-style FASTA, e.g. CAFA's train_sequences.fasta for exact snapshot "
+        "consistency.",
     )
     advanced.add_argument(
         "--annotations-path",
@@ -170,6 +177,7 @@ def load_training_annotations(args: argparse.Namespace):
     cache_path = get_annotations_cache_path(
         release=args.release,
         evidence_policy=args.evidence_policy,
+        source_fingerprint=file_fingerprint(path),
     )
     frame = load_uniprot_go_annotations(
         path,
@@ -306,10 +314,16 @@ def main() -> None:
     print(f"   Load time:    {time.time() - t0:.2f}s")
 
     # 2. Build the sequence + all-terms dataset.
+    fasta_path = args.fasta_path or get_uniprot_path()
+    if not fasta_path.exists():
+        raise FileNotFoundError(
+            f"Sequence file not found: {fasta_path}\n"
+            "Run: .venv/bin/python scripts/download_data.py --include fasta"
+        )
     t0 = time.time()
     print("2. Aligning sequences with annotations...")
     df = build_annotated_dataset(
-        fasta_path=get_uniprot_path(),
+        fasta_path=fasta_path,
         annotations=annotations_df,
         aspect=args.aspect,
         max_proteins=max_proteins,
@@ -334,44 +348,24 @@ def main() -> None:
             f"Only {len(df)} proteins matched. Check the annotation file and FASTA paths."
         )
 
-    # 3. Split before choosing the label vocabulary.
-    print("3. Splitting proteins by EntryID...")
-    if args.val_size > 0:
-        train_df, val_df, test_df = split_by_entry_id(
-            df,
-            test_size=args.test_size,
-            val_size=args.val_size,
-            random_state=args.seed,
-        )
-    else:
-        train_df, test_df = split_by_entry_id(
-            df,
-            test_size=args.test_size,
-            random_state=args.seed,
-        )
-        val_df = df.iloc[0:0].copy()
-    print(f"   Train: {len(train_df):,} | Val: {len(val_df):,} | Test: {len(test_df):,}")
-
-    # 4. Choose target terms on the training split only.
+    # 3-5. Split, choose the vocabulary on train only, then filter every split.
+    #      All three live in prepare_splits() so the ordering cannot drift.
+    print("3. Splitting proteins by EntryID and selecting the vocabulary...")
     top_k = args.top_terms if args.top_terms > 0 else None
-    target_terms = select_target_terms(
-        train_df["terms"].tolist(),
-        min_count=args.min_term_count,
-        top_k=top_k,
+    prepared = prepare_splits(
+        df,
+        test_size=args.test_size,
+        val_size=args.val_size,
+        random_state=args.seed,
+        min_term_count=args.min_term_count,
+        top_terms=top_k,
+        min_terms=args.min_terms,
     )
-    if len(target_terms) < 2:
-        raise ValueError(
-            f"Only {len(target_terms)} target term(s) survived min_count="
-            f"{args.min_term_count}. A multi-label run needs at least 2, so this "
-            "configuration is degenerate. Lower --min-term-count or increase "
-            "--n-proteins."
-        )
-
-    coverage = {
-        "train": vocabulary_coverage(train_df["terms"].tolist(), target_terms),
-        "val": vocabulary_coverage(val_df["terms"].tolist(), target_terms),
-        "test": vocabulary_coverage(test_df["terms"].tolist(), target_terms),
-    }
+    train_df, val_df, test_df = prepared.train, prepared.val, prepared.test
+    target_terms = prepared.target_terms
+    coverage = prepared.coverage
+    vocab_stats = prepared.vocab_stats
+    print(f"   Train: {len(train_df):,} | Val: {len(val_df):,} | Test: {len(test_df):,}")
     print(
         f"4. Target vocabulary: {len(target_terms):,} terms "
         f"(train-only, min_count={args.min_term_count}, top_k={top_k})"
@@ -380,36 +374,12 @@ def main() -> None:
         f"   Test annotation coverage: {coverage['test']['annotation_coverage']:.1%} "
         f"({coverage['test']['proteins_with_target']:,}/{coverage['test']['proteins']:,} proteins)"
     )
-
-    # 5. Restrict terms and drop zero-positive proteins.
-    #    Vocabulary was chosen on raw train terms above; apply it to every split
-    #    and never re-select it afterwards.
-    train_df, train_vocab_stats = apply_vocabulary(
-        train_df, target_terms, min_terms=args.min_terms
-    )
-    val_vocab_stats = None
-    if len(val_df):
-        val_df, val_vocab_stats = apply_vocabulary(
-            val_df, target_terms, min_terms=args.min_terms
-        )
-    test_df, test_vocab_stats = apply_vocabulary(
-        test_df, target_terms, min_terms=args.min_terms
-    )
-    vocab_stats = {"train": train_vocab_stats, "test": test_vocab_stats}
-    if val_vocab_stats is not None:
-        vocab_stats["val"] = val_vocab_stats
-    print(
-        f"5. After term filtering: Train {len(train_df):,} | "
-        f"Val {len(val_df):,} | Test {len(test_df):,}"
-    )
     print(
         f"   Dropped (fewer than {args.min_terms} in-vocabulary term(s)): "
-        f"Train {train_vocab_stats['proteins_dropped']:,} | "
-        f"Val {0 if val_vocab_stats is None else val_vocab_stats['proteins_dropped']:,} | "
-        f"Test {test_vocab_stats['proteins_dropped']:,}"
+        f"Train {vocab_stats['train']['proteins_dropped']:,} | "
+        f"Val {vocab_stats.get('val', {}).get('proteins_dropped', 0):,} | "
+        f"Test {vocab_stats['test']['proteins_dropped']:,}"
     )
-    if len(train_df) == 0 or len(test_df) == 0:
-        raise ValueError("No proteins remain after term filtering; loosen the vocabulary filters.")
 
     # 6. Extract features on train only.
     t0 = time.time()
@@ -500,6 +470,7 @@ def main() -> None:
         "config": {
             "label_source": args.label_source,
             "label_file": str(annotations_path),
+            "fasta_file": str(fasta_path),
             "label_description": label_description,
             "evidence_policy": args.evidence_policy if args.label_source == "uniprot" else None,
             "release": args.release if args.label_source == "uniprot" else None,

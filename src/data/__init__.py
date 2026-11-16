@@ -8,6 +8,7 @@ from src.data.annotations import (
     stream_uniprot_go_annotations,
     summarize_annotations,
 )
+from src.data.prepare import PreparedSplits, prepare_splits
 from src.data.targets import (
     apply_vocabulary,
     count_protein_terms,
@@ -31,6 +32,8 @@ __all__ = [
     "load_annotations",
     "load_information_accretion",
     "build_annotated_dataset",
+    "PreparedSplits",
+    "prepare_splits",
     "GoAnnotation",
     "parse_uniprot_go_line",
     "stream_uniprot_go_annotations",

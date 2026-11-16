@@ -55,6 +55,22 @@ def sha256_file(path: str | Path, chunk_size: int = CHUNK_SIZE) -> str:
     return digest.hexdigest()
 
 
+def file_fingerprint(path: str | Path) -> str:
+    """Return a short fingerprint identifying one local file version.
+
+    Combines the resolved path, size, and modification time. This is cheap
+    enough to compute on every pipeline start (no full content hash) and
+    changes whenever the file is replaced or regenerated, which is what cache
+    keys need.
+    """
+    resolved = Path(path).resolve()
+    stat = resolved.stat()
+    digest = hashlib.sha256(
+        f"{resolved}|{stat.st_size}|{stat.st_mtime_ns}".encode()
+    ).hexdigest()
+    return digest[:10]
+
+
 def parse_release_version(text: str) -> str | None:
     """Extract a UniProt release identifier from release notes text."""
     match = _RELEASE_RE.search(text)

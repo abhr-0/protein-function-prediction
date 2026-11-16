@@ -46,15 +46,21 @@ def _slug(value: str) -> str:
 def get_annotations_cache_path(
     release: str = "2026_04",
     evidence_policy: str = "cafa",
+    source_fingerprint: str | None = None,
 ) -> Path:
     """Return path to the cached UniProt GO annotation table.
 
     Args:
         release: UniProt release identifier, e.g. ``"2026_04"``.
         evidence_policy: Evidence filter name, e.g. ``"cafa"`` or ``"full"``.
+        source_fingerprint: Optional identifier for the exact source file (see
+            :func:`src.utils.download.file_fingerprint`). Without it, two
+            different flat files sharing a release label would share a cache.
     """
-    filename = f"annotations_sprot_{_slug(release)}_{_slug(evidence_policy)}.tsv.gz"
-    return get_artifacts_dir() / filename
+    filename = f"annotations_sprot_{_slug(release)}_{_slug(evidence_policy)}"
+    if source_fingerprint:
+        filename += f"_{_slug(source_fingerprint)}"
+    return get_artifacts_dir() / f"{filename}.tsv.gz"
 
 
 def get_cafa_dir() -> Path:
