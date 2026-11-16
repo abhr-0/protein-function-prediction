@@ -19,7 +19,7 @@
 | 2. CAFA-style evaluation | GO propagation + IA-weighted protein-centric F-max | **Not started** |
 | 3. Extra signals | CC aspect, localization ablation, k-NN, PPI, CAFA submission | **Not started** |
 
-Test suite: **104 tests passing** (`.venv/bin/pytest`).
+Test suite: **109 tests passing** (`.venv/bin/pytest`).
 
 ---
 
@@ -107,8 +107,11 @@ Acceptance criteria for closing Phase 1:
       curated CC labels as inputs.
 - [ ] Sequence-similarity k-NN baseline (DIAMOND/BLAST test-vs-train, aggregate
       neighbour GO terms). Sequence-only, so it stays comparable to the feature model.
-- [ ] CAFA6 comparison mode / submission writer (`sample_submission.tsv` format). No
-      local scoring: CAFA6 test labels are withheld.
+- [ ] CAFA6 comparison mode / submission writer (`sample_submission.tsv` format) plus
+      **local CAFA6 scoring**: the May 2026 ground truth is public (figshare, CC BY 4.0),
+      so this is now a real benchmark rather than a submission-only path. Use CAFA6's own
+      `go-basic.obo` (2025-06-01) and `IA.tsv`; follow the official protocol
+      (NK/LK/PK regimes, `-prop fill`, terms-of-interest, max 500 terms, th_step 0.001).
 - [ ] PPI network-assisted track — **deferred**. Separate research question requiring
       external data, ID mapping, and strict leakage controls; must not be mixed with the
       sequence-only comparison.
@@ -124,7 +127,8 @@ Acceptance criteria for closing Phase 1:
 | CAFA6 `train_terms.tsv` proteins | 82,404 (82,395 present in Swiss-Prot) |
 | Swiss-Prot covered by CAFA6 labels | **14.3%** |
 | Proteins dropped by the old CAFA-only pipeline | ~493,678 |
-| CAFA6 test labels | withheld (no local CAFA6 test scoring possible) |
+| CAFA6 ground truth | public since 2026-07-01: NK 749 / LK 485 / PK 6,951 proteins (8,023 unique) |
+| CAFA6 test sequences | 224,121 proteins with unchanged sequences between t0 and t1 |
 
 ## Locked decisions
 
@@ -133,7 +137,7 @@ Acceptance criteria for closing Phase 1:
 | Training labels | UniProt `DR GO` from `uniprot_sprot.dat.gz`, same release as the FASTA |
 | Evidence policy | `cafa` = exclude `IEA`/`ND`/`NR`; `full` = include `IEA`, still drop `ND`/`NR` |
 | Benchmark | Local `EntryID`-level Swiss-Prot holdout with CAFA IA-weighted F-max |
-| CAFA6 role | Optional comparison / submission mode only |
+| CAFA6 role | Comparison mode plus a locally scorable benchmark (official May 2026 ground truth) |
 | Vocabulary | Selected on the training split only, then applied to every split |
 | Propagation | Evaluation-side by default; training-side is an ablation |
 | Model/features during the label fix | Unchanged, so metric changes are attributable to the data |
@@ -145,8 +149,10 @@ Acceptance criteria for closing Phase 1:
   Sequence-cluster or temporal splits are future work.
 - Contemporary labels plus a random holdout is not CAFA's future-annotation setting, so
   absolute numbers will not be comparable to published CAFA leaderboards.
-- `scripts/download_data.py` does not yet fetch `cafa_6_protein_data/`, so CAFA mode is
-  not reproducible from the script alone.
+- The CAFA6 **evaluation** bundle is fetched by `scripts/download_data.py --include cafa6`
+  and md5-verified. The **training/test** bundle still requires a Kaggle login and rules
+  acceptance, so those files remain manual (verify them against the counts in
+  `docs/data_sources.md`).
 - **MF labels are extremely top-heavy**: only 52 MF terms occur in >=20 of 3,500 training
   proteins. A small vocabulary caps coverage (52 terms -> 33.5% of test proteins), while a
   wide one (287 terms at `min_count=5`) drops sparsity to 99.4% and makes the classifier's

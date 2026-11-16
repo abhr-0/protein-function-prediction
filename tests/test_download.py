@@ -10,6 +10,7 @@ from src.utils.download import (
     DownloadRecord,
     download_file,
     file_fingerprint,
+    go_obo_release,
     load_manifest,
     manifest_release,
     parse_release_version,
@@ -186,3 +187,45 @@ def test_file_fingerprint_tracks_file_identity(tmp_path: Path):
 
     with pytest.raises(FileNotFoundError):
         file_fingerprint(tmp_path / "missing.dat")
+
+
+def test_file_md5_verification(tmp_path: Path):
+    """An upstream md5 must be enforced, not just recorded."""
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"payload")
+    good = hashlib.md5(b"payload").hexdigest()
+
+    record = download_file(
+        source.as_uri(), tmp_path / "ok.bin", expected_md5=good, progress=False
+    )
+    assert record.md5 == good
+    assert record.verified == "md5"
+
+    with pytest.raises(ValueError, match="md5 mismatch"):
+        download_file(
+            source.as_uri(),
+            tmp_path / "bad.bin",
+            expected_md5="0" * 32,
+            progress=False,
+        )
+    assert not (tmp_path / "bad.bin").exists()
+
+
+def test_go_obo_release_parses_header_date(tmp_path: Path):
+    """The ontology's own version must not be confused with a UniProt release."""
+    modern = tmp_path / "modern.obo"
+    modern.write_text(
+        "format-version: 1.2\n"
+        "data-version: releases/2026-07-26\n"
+        "\n[Term]\nid: GO:0000001\n"
+    )
+    legacy = tmp_path / "legacy.obo"
+    legacy.write_text(
+        "format-version: 1.2\n"
+        "date: 08.08.2026 12:00\n"
+        "\n[Term]\nid: GO:0000001\n"
+    )
+
+    assert go_obo_release(modern) == "2026-07-26"
+    assert go_obo_release(legacy) == "2026-08-08"
+    assert go_obo_release(tmp_path / "missing.obo") is None

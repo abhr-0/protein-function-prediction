@@ -1,9 +1,19 @@
 """Tests for project path helpers."""
 
+import pytest
+
 from src.utils.paths import (
     get_annotations_cache_path,
+    get_cafa_dir,
+    get_cafa_eval_dir,
+    get_cafa_eval_obo_path,
+    get_cafa_groundtruth_path,
+    get_cafa_terms_of_interest_path,
+    get_cafa_train_sequences_path,
     get_data_manifest_path,
     get_go_obo_path,
+    get_ia_path,
+    get_train_terms_path,
     get_uniprot_dat_path,
     get_uniprot_path,
 )
@@ -58,3 +68,23 @@ def test_annotations_cache_path_can_include_source_fingerprint():
     assert plain.name == "annotations_sprot_2026_04_cafa.tsv.gz"
     assert keyed.name == "annotations_sprot_2026_04_cafa_abc123.tsv.gz"
     assert len({plain, keyed, other}) == 3
+
+
+def test_cafa6_layout_separates_train_test_and_eval():
+    """Kaggle-sourced bundle and figshare eval bundle must not be mixed."""
+    assert get_cafa_dir().name == "cafa6"
+    assert get_train_terms_path().parent.name == "train"
+    assert get_cafa_train_sequences_path().parent.name == "train"
+    assert get_ia_path().parent == get_cafa_eval_dir()
+    assert get_cafa_eval_obo_path().parent == get_cafa_eval_dir()
+    assert get_cafa_terms_of_interest_path().parent == get_cafa_eval_dir()
+
+
+def test_cafa6_groundtruth_paths_by_regime():
+    """NK/LK/PK regimes map to files; anything else must fail loudly."""
+    assert get_cafa_groundtruth_path("NK").name == "May2026_groundtruth_NK.tsv"
+    assert get_cafa_groundtruth_path("lk").name == "May2026_groundtruth_LK.tsv"
+    assert get_cafa_groundtruth_path("PK_known").name == "May2026_groundtruth_PK_known.tsv"
+
+    with pytest.raises(ValueError, match="Unknown CAFA6 regime"):
+        get_cafa_groundtruth_path("XX")

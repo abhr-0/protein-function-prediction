@@ -82,18 +82,79 @@ def get_annotations_cache_path(
 
 
 def get_cafa_dir() -> Path:
-    """Return path to CAFA dataset directory."""
-    return get_data_dir() / "cafa_6_protein_data"
+    """Return the CAFA6 data directory."""
+    return get_data_dir() / "cafa6"
+
+
+def get_cafa_train_dir() -> Path:
+    """Return the CAFA6 training bundle (Kaggle competition files)."""
+    return get_cafa_dir() / "train"
+
+
+def get_cafa_test_dir() -> Path:
+    """Return the CAFA6 test superset (Kaggle competition files)."""
+    return get_cafa_dir() / "test"
+
+
+def get_cafa_eval_dir() -> Path:
+    """Return the CAFA6 official evaluation bundle (figshare, CC BY 4.0)."""
+    return get_cafa_dir() / "eval"
 
 
 def get_train_terms_path() -> Path:
-    """Return path to train_terms.tsv."""
-    return get_cafa_dir() / "Train" / "train_terms.tsv"
+    """Return path to the CAFA6 ``train_terms.tsv`` labels."""
+    return get_cafa_train_dir() / "train_terms.tsv"
+
+
+def get_cafa_train_sequences_path() -> Path:
+    """Return path to CAFA6 ``train_sequences.fasta``.
+
+    Use this for CAFA-mode runs so sequences and labels come from one snapshot.
+    """
+    return get_cafa_train_dir() / "train_sequences.fasta"
+
+
+def get_cafa_test_superset_path() -> Path:
+    """Return path to CAFA6 ``testsuperset.fasta`` (submission targets)."""
+    return get_cafa_test_dir() / "testsuperset.fasta"
+
+
+def get_cafa_sample_submission_path() -> Path:
+    """Return path to CAFA6 ``sample_submission.tsv`` (submission format)."""
+    return get_cafa_dir() / "sample_submission.tsv"
 
 
 def get_ia_path() -> Path:
-    """Return path to IA.tsv (Information Accretion weights)."""
-    return get_cafa_dir() / "IA.tsv"
+    """Return path to the official ``IA.tsv`` (Information Accretion weights)."""
+    return get_cafa_eval_dir() / "IA.tsv"
+
+
+def get_cafa_eval_obo_path() -> Path:
+    """Return path to CAFA6's own ``go-basic.obo``.
+
+    Use this graph for CAFA6 scoring; use ``get_go_obo_path()`` for our own
+    labels. The two are different vintages.
+    """
+    return get_cafa_eval_dir() / "go-basic.obo"
+
+
+def get_cafa_groundtruth_path(regime: str = "NK") -> Path:
+    """Return path to a CAFA6 ``May2026_groundtruth_<regime>.tsv`` file.
+
+    Args:
+        regime: ``"NK"`` (no knowledge), ``"LK"`` (limited knowledge), ``"PK"``
+            (partial knowledge), or ``"PK_known"`` (previously public terms).
+    """
+    regimes = {"NK", "LK", "PK", "PK_known"}
+    key = regime.strip().upper() if regime.upper() != "PK_KNOWN" else "PK_known"
+    if key not in regimes:
+        raise ValueError(f"Unknown CAFA6 regime '{regime}'. Choose from {sorted(regimes)}.")
+    return get_cafa_eval_dir() / f"May2026_groundtruth_{key}.tsv"
+
+
+def get_cafa_terms_of_interest_path() -> Path:
+    """Return path to CAFA6's evaluated terms of interest."""
+    return get_cafa_eval_dir() / "May2026_groundtruth_terms_of_interest.txt"
 
 
 def get_artifacts_dir() -> Path:

@@ -17,7 +17,7 @@ The project operates directly on the **UniProtKB/Swiss-Prot** dataset (`data/uni
   - Example: `>sp|Q6GZX4|001R_FRG3G Putative transcription factor 001R OS=Frog virus 3 OX=654924 GN=FV3-001R PE=4 SV=1`
   - Primary Key (`EntryID`): The UniProt Accession ID (e.g., `Q6GZX4`).
 - **Annotations (primary):** Gene Ontology terms parsed from the UniProt flat file `data/uniprot/uniprot_sprot.dat.gz` `DR GO` lines, from the **same release** as the FASTA (2026_04, 3,100,768 raw GO lines). Evidence policy `cafa` excludes `IEA`/`ND`/`NR`; `full` keeps `IEA`.
-- **Benchmark labels (secondary):** `cafa_6_protein_data/Train/train_terms.tsv` covers only 82,395 of 576,073 Swiss-Prot proteins (**14.3%**) and its test labels are withheld, so it is kept only as an optional comparison/submission mode — never as the default training source.
+- **Benchmark labels (secondary):** `data/cafa6/train/train_terms.tsv` covers only 82,395 of 576,073 Swiss-Prot proteins (**14.3%**), so it is never the default training source. Unlike during the competition, the May 2026 ground truth is now public (figshare, CC BY 4.0), so CAFA6 can be scored locally; see `docs/data_sources.md`.
 
 ### Modeling Strategy
 1. **Stage 1 (Current Focus):** Classical Machine Learning baseline using hand-engineered sequence features (amino acid composition, length, physicochemical properties, k-mers) predicting multi-label GO terms. Focus on **Molecular Function (MF)** first.
@@ -74,13 +74,13 @@ protein-function-prediction/
 │   │   └── uniprot_sprot.dat.gz   # Swiss-Prot flat file: DR GO labels + evidence
 │   ├── go/                    # GO Consortium data (own release cadence)
 │   │   └── go-basic.obo       # GO graph for ancestor propagation (Phase 2)
-│   ├── cafa_6_protein_data/   # Optional comparison mode only
-│   │   ├── Train/
-│   │   │   ├── train_terms.tsv    # CAFA6 labels (14.3% Swiss-Prot coverage)
-│   │   │   ├── train_sequences.fasta
-│   │   │   ├── train_taxonomy.tsv
-│   │   │   └── go-basic.obo       # CAFA6's own OBO snapshot (do not mix with the fresh one)
-│   │   ├── IA.tsv                 # Information Accretion weights for CAFA eval
+│   ├── cafa6/                 # Optional CAFA6 comparison + benchmark
+│   │   ├── train/             # Kaggle competition bundle
+│   │   │   ├── train_terms.tsv, train_sequences.fasta, train_taxonomy.tsv
+│   │   ├── test/              # Kaggle submission targets (testsuperset.fasta + taxa)
+│   │   ├── eval/              # figshare official evaluation bundle
+│   │   │   ├── IA.tsv, go-basic.obo (2025-06-01), test_sequences.fasta
+│   │   │   └── May2026_groundtruth_{NK,LK,PK,PK_known}.tsv + terms_of_interest
 │   │   └── sample_submission.tsv
 │   └── artifacts/             # Models, metrics JSON, data_manifest.json, annotation cache
 ├── docs/
@@ -144,4 +144,4 @@ When writing code or planning changes in this repo, agents must adhere to the fo
 5. **Memory Discipline:**
    - Never load 576k dense feature vectors into memory simultaneously. Use chunked processing or sparse matrices.
 6. **Git Hygiene:**
-   - Keep `data/uniprot/`, `data/go/`, `data/cafa_6_protein_data/`, `data/artifacts/`, and cache files out of git commits. Track code, docs, and configurations only.
+   - Keep `data/uniprot/`, `data/go/`, `data/cafa6/`, `data/artifacts/`, and cache files out of git commits. Track code, docs, and configurations only.

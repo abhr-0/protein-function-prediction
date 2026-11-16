@@ -39,6 +39,9 @@ class DownloadRecord:
     release: str
     downloaded_at: str
     status: str  # "downloaded", "updated", or "existing"
+    md5: str | None = None
+    source: str | None = None
+    verified: str | None = None  # hash algorithm checked against upstream
 
 
 def utc_now_iso() -> str:
@@ -99,6 +102,8 @@ def download_file(
     *,
     name: str | None = None,
     release: str = "unknown",
+    source: str | None = None,
+    expected_md5: str | None = None,
     force: bool = False,
     timeout: int = 120,
     progress: bool = True,
@@ -109,6 +114,13 @@ def download_file(
     reused and its checksum is recorded instead of re-downloading it.
     Downloads are written to a temporary ``.part`` file and moved into place
     only after the transfer completes.
+
+    Args:
+        expected_md5: Upstream-published md5. When given, the transfer is
+            verified and a mismatch deletes the partial file and raises.
+        source: Provenance label for the publisher, e.g. ``"uniprot"``,
+            ``"go"``, or ``"cafa6-figshare"``. Sources have independent
+            release cadences, so this is recorded per file.
     """
     dest = Path(destination)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -116,6 +128,13 @@ def download_file(
     existed_before = dest.is_file() and dest.stat().st_size > 0
 
     if existed_before and not force:
+        data = dest.read_bytes()
+        actual_md5 = hashlib.md5(data).hexdigest()
+        if expected_md5 is not None and actual_md5 != expected_md5:
+            raise ValueError(
+                f"md5 mismatch for existing {dest}: expected {expected_md5}, "
+                f"got {actual_md5}. Re-run with force=True."
+            )
         return DownloadRecord(
             name=filename,
             url=url,
@@ -125,6 +144,9 @@ def download_file(
             release=release,
             downloaded_at=utc_now_iso(),
             status="existing",
+            md5=actual_md5,
+            source=source,
+            verified="md5" if expected_md5 else None,
         )
 
     part = dest.with_name(dest.name + ".part")
@@ -132,6 +154,7 @@ def download_file(
         part.unlink()
 
     digest = hashlib.sha256()
+    md5_digest = hashlib.md5()
     size = 0
     next_progress = PROGRESS_STEP
     try:
@@ -142,6 +165,7 @@ def download_file(
                     break
                 handle.write(chunk)
                 digest.update(chunk)
+                md5_digest.update(chunk)
                 size += len(chunk)
                 if progress and size >= next_progress:
                     print(
@@ -149,6 +173,11 @@ def download_file(
                         file=sys.stderr,
                     )
                     next_progress += PROGRESS_STEP
+        actual_md5 = md5_digest.hexdigest()
+        if expected_md5 is not None and actual_md5 != expected_md5:
+            raise ValueError(
+                f"md5 mismatch for {dest}: expected {expected_md5}, got {actual_md5}"
+            )
         os.replace(part, dest)
     except Exception:
         if part.exists():
@@ -164,6 +193,9 @@ def download_file(
         release=release,
         downloaded_at=utc_now_iso(),
         status="updated" if existed_before else "downloaded",
+        md5=actual_md5,
+        source=source,
+        verified="md5" if expected_md5 else None,
     )
 
 
@@ -208,9 +240,10 @@ def manifest_release(manifest: dict) -> str | None:
     usable is recorded, so callers never mistake ``"unknown"`` for a version.
     """
     entries = manifest.get("files", {})
-    for key in ("uniprot_sprot.dat.gz", "uniprot_sprot.fasta.gz"):
-        entry = entries.get(key)
-        if entry:
+    for wanted in ("uniprot_sprot.dat.gz", "uniprot_sprot.fasta.gz"):
+        for key, entry in entries.items():
+            if not (key == wanted or key.endswith(f"/{wanted}")):
+                continue
             release = entry.get("release")
             if release and release != "unknown":
                 return str(release)
@@ -252,4 +285,32 @@ def _find_ca_file() -> str | None:
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return candidate
+    return None
+
+
+def go_obo_release(path: str | Path, header_lines: int = 40) -> str | None:
+    """Return the ontology release date from an OBO header.
+
+    Current GO snapshots carry ``data-version: releases/2026-07-26``; older ones
+    carry ``date: 08.08.2026 12:00``. Either way the ontology versions itself,
+    independently of any UniProt release. Returns an ISO date or ``None``.
+    """
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for _ in range(header_lines):
+                line = handle.readline()
+                if not line or line.startswith("["):
+                    break
+                if line.startswith("data-version:"):
+                    raw = line.split(":", 1)[1].strip()
+                    candidate = raw.rsplit("/", 1)[-1]
+                    year, month, day = candidate.split("-")
+                    if len(year) == 4:
+                        return f"{year}-{month}-{day}"
+                if line.startswith("date:"):
+                    raw = line.split(":", 1)[1].strip().split()[0]
+                    day, month, year = raw.split(".")
+                    return f"{year}-{month}-{day}"
+    except (OSError, ValueError):
+        return None
     return None
