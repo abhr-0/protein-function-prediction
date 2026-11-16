@@ -6,6 +6,7 @@ from src.data.annotations import (
     parse_uniprot_go_line,
     resolve_excluded_evidence,
     stream_uniprot_go_annotations,
+    summarize_annotations,
 )
 from src.data.uniprot import (
     UniProtRecord,
@@ -28,4 +29,5 @@ __all__ = [
     "stream_uniprot_go_annotations",
     "load_uniprot_go_annotations",
     "resolve_excluded_evidence",
+    "summarize_annotations",
 ]
