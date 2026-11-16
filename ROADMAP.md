@@ -137,6 +137,7 @@ Acceptance criteria for closing Phase 1:
 | Vocabulary | Selected on the training split only, then applied to every split |
 | Propagation | Evaluation-side by default; training-side is an ablation |
 | Model/features during the label fix | Unchanged, so metric changes are attributable to the data |
+| GO graph for propagation | `data/go-basic.obo` (fresh). CAFA6's older copy is only for reproducing CAFA6's setup; never mix the two in one run |
 
 ## Known limitations
 
