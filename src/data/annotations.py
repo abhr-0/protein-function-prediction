@@ -118,8 +118,15 @@ def stream_uniprot_go_annotations(
     current_entry: str | None = None
     with opener(path, "rt", encoding="utf-8") as handle:
         for line in handle:
-            if line.startswith("AC   "):
-                current_entry = line[len("AC   ") :].split(";", 1)[0].strip()
+            if line.startswith("ID   "):
+                current_entry = None
+            elif line.startswith("AC   "):
+                # The AC field wraps across several lines for merged entries,
+                # and only the first value of the first line is the primary
+                # accession. Later lines carry secondary accessions, which do
+                # not appear in the FASTA and would silently drop annotations.
+                if current_entry is None:
+                    current_entry = line[len("AC   ") :].split(";", 1)[0].strip()
             elif line.startswith("DR   GO;") and current_entry:
                 annotation = parse_uniprot_go_line(line)
                 if annotation is None:

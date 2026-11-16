@@ -178,3 +178,32 @@ def test_summarize_empty_annotations():
         "evidence": {},
     }
 
+
+
+MULTI_AC_DAT = """\
+ID   PEX5R_HUMAN             Reviewed;         626 AA.
+AC   Q8IYB4; B7Z2A5; B7Z305; B7Z318; B7Z5Z5; B7Z8P2; E7EUV8; E7EUZ0; E9PEC1;
+AC   E9PH97; Q9NQD1; Q9P2U3; Q9P2U4;
+DR   GO; GO:0005515; F:protein binding; IPI:UniProtKB.
+//
+"""
+
+
+def test_stream_uses_primary_accession_across_wrapped_ac_lines(tmp_path: Path):
+    """Only the first value of the first AC line is the primary accession.
+
+    Regression test: the AC field wraps for merged entries, and re-keying on
+    every AC line attributed annotations to a secondary accession (e.g.
+    E9PH97 instead of Q8IYB4), which is absent from the FASTA and therefore
+    silently dropped during alignment.
+    """
+    path = tmp_path / "multi_ac.dat.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as handle:
+        handle.write(MULTI_AC_DAT)
+
+    records = list(stream_uniprot_go_annotations(path))
+    frame = load_uniprot_go_annotations(path)
+
+    assert [r.term for r in records] == ["GO:0005515"]
+    assert {r.entry_id for r in records} == {"Q8IYB4"}
+    assert "E9PH97" not in set(frame["EntryID"].astype(str))
