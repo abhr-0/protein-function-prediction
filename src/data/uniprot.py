@@ -229,8 +229,13 @@ def build_annotated_dataset(
 
     term_set = set(target_terms) if target_terms is not None else None
 
+    # Cast to plain str: annotation sources may store terms as categoricals
+    # (the UniProt cache does), and pandas cannot regroup a list-valued
+    # aggregation into a categorical column.
+    pairs = annotations[[entry_col, term_col]].astype(str)
+
     terms_grouped: dict[str, list[str]] = {}
-    grouped = annotations.groupby(entry_col, observed=True)[term_col].agg(
+    grouped = pairs.groupby(entry_col, observed=True)[term_col].agg(
         lambda values: sorted(set(values))
     )
     for entry_id, terms in grouped.items():

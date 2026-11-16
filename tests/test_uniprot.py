@@ -297,3 +297,32 @@ def test_build_annotated_dataset_empty_annotations(tmp_path: Path):
         "length",
         "terms",
     ]
+
+
+def test_build_annotated_dataset_accepts_categorical_annotations(tmp_path: Path):
+    """Categorical dtypes (as produced by the UniProt cache) must not break grouping.
+
+    Regression test: grouping a categorical term column with a list-valued
+    aggregation raised ``TypeError: unhashable type: 'list'``.
+    """
+    fasta_file = tmp_path / "test.fasta"
+    fasta_file.write_text(
+        ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "ACDEFGHIKLMNPQRSTVWY\n"
+        ">sp|P2|PROT2_HUMAN Protein 2 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "YYYYYYYYYY\n"
+    )
+    annotations = pd.DataFrame(
+        {
+            "EntryID": pd.Series(["P1", "P1", "P2"], dtype="category"),
+            "term": pd.Series(
+                ["GO:0001", "GO:0002", "GO:0001"], dtype="category"
+            ),
+            "aspect": pd.Series(["F", "F", "F"], dtype="category"),
+        }
+    )
+
+    df = build_annotated_dataset(fasta_file, annotations, aspect="F")
+
+    assert set(df["EntryID"]) == {"P1", "P2"}
+    assert df[df["EntryID"] == "P1"].iloc[0]["terms"] == ["GO:0001", "GO:0002"]
