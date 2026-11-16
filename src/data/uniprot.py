@@ -2,10 +2,12 @@
 
 import gzip
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
 
+import numpy as np
 import pandas as pd
 from Bio import SeqIO
 
@@ -195,6 +197,102 @@ def load_information_accretion(ia_path: str | Path) -> dict[str, float]:
     return dict(zip(ia_df["term"], ia_df["weight"]))
 
 
+def build_annotated_dataset(
+    fasta_path: str | Path,
+    annotations: pd.DataFrame,
+    target_terms: Sequence[str] | None = None,
+    *,
+    aspect: str | None = None,
+    max_proteins: int | None = None,
+    sample_seed: int | None = None,
+    min_terms: int = 1,
+    entry_col: str = "EntryID",
+    term_col: str = "term",
+    aspect_col: str = "aspect",
+) -> tuple[pd.DataFrame, list[str]]:
+    """Align protein sequences with their GO annotations.
+
+    This is the source-agnostic builder. ``annotations`` may come from CAFA6
+    ``train_terms.tsv`` or from UniProt ``DR GO`` lines; the only requirement
+    is the tidy schema (``EntryID``, ``term``, ``aspect``).
+
+    Args:
+        fasta_path: Path to plain or gzip-compressed FASTA.
+        annotations: Tidy annotation frame.
+        target_terms: Optional target vocabulary. If provided, annotations are
+            restricted to these terms. If ``None``, all terms are used, ordered
+            by descending frequency.
+        aspect: Optional aspect filter applied to ``annotations``.
+        max_proteins: Maximum number of proteins to return. ``None`` keeps all.
+        sample_seed: If set, randomly sample up to ``max_proteins`` proteins
+            across the full labeled set instead of taking the first N records
+            in FASTA order.
+        min_terms: Minimum number of selected terms a protein must have to be
+            included (default: 1).
+        entry_col: Accession column name in ``annotations``.
+        term_col: GO term column name in ``annotations``.
+        aspect_col: Aspect column name in ``annotations``.
+
+    Returns:
+        ``(dataset_df, target_terms)`` where ``dataset_df`` has columns
+        ``EntryID``, ``entry_name``, ``organism``, ``sequence``, ``length``,
+        ``terms``.
+    """
+    if aspect is not None:
+        normalized = normalize_aspect(aspect)
+        annotations = annotations[annotations[aspect_col] == normalized]
+
+    if target_terms is None:
+        target_terms_list = list(annotations[term_col].value_counts().index)
+    else:
+        target_terms_list = list(target_terms)
+    term_set = set(target_terms_list)
+
+    terms_grouped: dict[str, list[str]] = {}
+    grouped = annotations.groupby(entry_col, observed=True)[term_col].agg(
+        lambda values: sorted(set(values))
+    )
+    for entry_id, terms in grouped.items():
+        selected = [term for term in terms if term in term_set]
+        if len(selected) >= min_terms:
+            terms_grouped[str(entry_id)] = selected
+
+    target_protein_ids = set(terms_grouped)
+    if sample_seed is not None and max_proteins is not None:
+        candidate_ids = sorted(target_protein_ids)
+        if len(candidate_ids) > max_proteins:
+            rng = np.random.default_rng(sample_seed)
+            selected_ids = rng.choice(candidate_ids, size=max_proteins, replace=False)
+        else:
+            selected_ids = candidate_ids
+        chosen_ids = set(str(value) for value in selected_ids)
+    else:
+        chosen_ids = target_protein_ids
+
+    matched_records = []
+    for record in stream_uniprot_fasta(fasta_path):
+        if record.entry_id not in chosen_ids:
+            continue
+        if sample_seed is None and max_proteins is not None and len(matched_records) >= max_proteins:
+            break
+        matched_records.append(
+            {
+                "EntryID": record.entry_id,
+                "entry_name": record.entry_name,
+                "organism": record.organism,
+                "sequence": record.sequence,
+                "length": record.length,
+                "terms": terms_grouped[record.entry_id],
+            }
+        )
+
+    df = pd.DataFrame(
+        matched_records,
+        columns=["EntryID", "entry_name", "organism", "sequence", "length", "terms"],
+    )
+    return df, target_terms_list
+
+
 def create_annotated_dataset(
     fasta_path: str | Path,
     terms_path: str | Path,
@@ -203,15 +301,18 @@ def create_annotated_dataset(
     min_term_count: int | None = None,
     top_k_terms: int | None = 300,
 ) -> tuple[pd.DataFrame, list[str]]:
-    """Build an aligned DataFrame of sequences and multi-label GO annotations.
+    """Build a dataset from CAFA-style ``train_terms.tsv`` annotations.
 
-    Streams UniProt FASTA records and aligns them with their associated Gene
-    Ontology terms from a tabular annotations file (e.g. CAFA train_terms.tsv).
+    This is the CAFA wrapper around :func:`build_annotated_dataset`. It keeps
+    only Swiss-Prot records whose accession is present in the CAFA annotation
+    table, so it is **not** a full Swiss-Prot training set. For that, use
+    :func:`build_annotated_dataset` with UniProt GO annotations.
 
     Args:
         fasta_path: Path to plain or gzip-compressed FASTA file.
-        terms_path: Path to annotations TSV file with columns (EntryID, term, aspect).
-        aspect: Optional filter for a specific Gene Ontology sub-ontology:
+        terms_path: Path to annotations TSV with columns
+            ``(EntryID, term, aspect)``.
+        aspect: Optional Gene Ontology sub-ontology filter:
             - 'F' or 'MF': Molecular Function (biochemical activity)
             - 'P' or 'BP': Biological Process (cellular pathway / program)
             - 'C' or 'CC': Cellular Component (subcellular localization)
@@ -238,29 +339,11 @@ def create_annotated_dataset(
         top_k_terms=top_k_terms,
     )
 
-    # Group terms per protein
-    terms_grouped = (
-        annotations_df.groupby("EntryID")["term"]
-        .apply(lambda s: sorted(list(set(s))))
-        .to_dict()
+    return build_annotated_dataset(
+        fasta_path=fasta_path,
+        annotations=annotations_df,
+        target_terms=target_terms,
+        max_proteins=max_proteins,
+        sample_seed=None,
+        min_terms=1,
     )
-    target_protein_ids = set(terms_grouped.keys())
-
-    matched_records = []
-    for record in stream_uniprot_fasta(fasta_path):
-        if record.entry_id in target_protein_ids:
-            matched_records.append(
-                {
-                    "EntryID": record.entry_id,
-                    "entry_name": record.entry_name,
-                    "organism": record.organism,
-                    "sequence": record.sequence,
-                    "length": record.length,
-                    "terms": terms_grouped[record.entry_id],
-                }
-            )
-            if max_proteins is not None and len(matched_records) >= max_proteins:
-                break
-
-    df = pd.DataFrame(matched_records)
-    return df, target_terms

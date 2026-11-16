@@ -10,6 +10,7 @@ from src.data.annotations import (
 )
 from src.data.uniprot import (
     UniProtRecord,
+    build_annotated_dataset,
     create_annotated_dataset,
     load_annotations,
     load_information_accretion,
@@ -23,6 +24,7 @@ __all__ = [
     "stream_uniprot_fasta",
     "load_annotations",
     "load_information_accretion",
+    "build_annotated_dataset",
     "create_annotated_dataset",
     "GoAnnotation",
     "parse_uniprot_go_line",

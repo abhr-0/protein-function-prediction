@@ -8,6 +8,7 @@ import pytest
 
 from src.data.uniprot import (
     UniProtRecord,
+    build_annotated_dataset,
     create_annotated_dataset,
     load_annotations,
     load_information_accretion,
@@ -206,3 +207,130 @@ def test_real_dataset_smoke():
     assert len(terms) == 50
     assert "sequence" in df.columns
     assert "terms" in df.columns
+
+
+def _synthetic_annotations(entries: list[str]) -> pd.DataFrame:
+    """Build a tidy annotation frame for the generic builder tests."""
+    rows = []
+    for index, entry_id in enumerate(entries):
+        rows.append({"EntryID": entry_id, "term": "GO:0001", "aspect": "F"})
+        if index % 2 == 0:
+            rows.append({"EntryID": entry_id, "term": "GO:0002", "aspect": "F"})
+    return pd.DataFrame(rows)
+
+
+def test_build_annotated_dataset_generic(tmp_path: Path):
+    """The source-agnostic builder should align arbitrary tidy annotations."""
+    fasta_file = tmp_path / "test.fasta"
+    fasta_file.write_text(
+        ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "ACDEFGHIKLMNPQRSTVWY\n"
+        ">sp|P2|PROT2_HUMAN Protein 2 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "YYYYYYYYYY\n"
+        ">sp|P3|PROT3_HUMAN Protein 3 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "AAAAAAAAAA\n"
+    )
+    annotations = pd.DataFrame(
+        [
+            {"EntryID": "P1", "term": "GO:0001", "aspect": "F"},
+            {"EntryID": "P1", "term": "GO:0002", "aspect": "F"},
+            {"EntryID": "P2", "term": "GO:0003", "aspect": "F"},
+            {"EntryID": "P9", "term": "GO:0001", "aspect": "F"},
+        ]
+    )
+
+    df, target_terms = build_annotated_dataset(
+        fasta_file,
+        annotations,
+        target_terms=["GO:0001", "GO:0002"],
+        min_terms=1,
+    )
+
+    assert target_terms == ["GO:0001", "GO:0002"]
+    assert set(df["EntryID"]) == {"P1"}  # P2 only has GO:0003; P9 is absent
+    assert df.iloc[0]["terms"] == ["GO:0001", "GO:0002"]
+
+
+def test_build_annotated_dataset_min_terms_and_aspect_filter(tmp_path: Path):
+    """min_terms and aspect filters should drop proteins with no selected terms."""
+    fasta_file = tmp_path / "test.fasta"
+    fasta_file.write_text(
+        ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "ACDEFGHIKLMNPQRSTVWY\n"
+        ">sp|P2|PROT2_HUMAN Protein 2 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "YYYYYYYYYY\n"
+    )
+    annotations = pd.DataFrame(
+        [
+            {"EntryID": "P1", "term": "GO:0001", "aspect": "F"},
+            {"EntryID": "P1", "term": "GO:0002", "aspect": "F"},
+            {"EntryID": "P2", "term": "GO:0003", "aspect": "F"},
+            {"EntryID": "P2", "term": "GO:0004", "aspect": "C"},
+        ]
+    )
+
+    df, _ = build_annotated_dataset(
+        fasta_file,
+        annotations,
+        target_terms=["GO:0001", "GO:0002", "GO:0003"],
+        aspect="F",
+        min_terms=2,
+    )
+
+    assert set(df["EntryID"]) == {"P1"}
+
+
+def test_build_annotated_dataset_seeded_sampling_is_deterministic(tmp_path: Path):
+    """Random protein sampling should be reproducible and bounded."""
+    fasta_file = tmp_path / "test.fasta"
+    lines = []
+    for index in range(10):
+        accession = f"P{index:05d}"
+        lines.append(
+            f">sp|{accession}|PROT{index}_HUMAN Protein {index} "
+            "OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+            "ACDEFGHIKLMNPQRSTVWY\n"
+        )
+    fasta_file.write_text("".join(lines))
+
+    annotations = _synthetic_annotations([f"P{index:05d}" for index in range(10)])
+
+    first, _ = build_annotated_dataset(
+        fasta_file,
+        annotations,
+        max_proteins=5,
+        sample_seed=42,
+    )
+    second, _ = build_annotated_dataset(
+        fasta_file,
+        annotations,
+        max_proteins=5,
+        sample_seed=42,
+    )
+
+    assert len(first) == 5
+    assert set(first["EntryID"]) == set(second["EntryID"])
+    assert set(first["EntryID"]).issubset(set(annotations["EntryID"]))
+
+
+def test_build_annotated_dataset_empty_annotations(tmp_path: Path):
+    """Empty annotations should yield an empty frame with the documented schema."""
+    fasta_file = tmp_path / "test.fasta"
+    fasta_file.write_text(
+        ">sp|P1|PROT1_HUMAN Protein 1 OS=Homo sapiens OX=9606 PE=1 SV=1\n"
+        "ACDEFGHIKLMNPQRSTVWY\n"
+    )
+    annotations = pd.DataFrame(columns=["EntryID", "term", "aspect"])
+
+    df, target_terms = build_annotated_dataset(fasta_file, annotations)
+
+    assert target_terms == []
+    assert len(df) == 0
+    assert list(df.columns) == [
+        "EntryID",
+        "entry_name",
+        "organism",
+        "sequence",
+        "length",
+        "terms",
+    ]
