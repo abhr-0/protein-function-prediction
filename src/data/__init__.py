@@ -1,5 +1,12 @@
 """Data loading and preprocessing utilities for UniProt and CAFA."""
 
+from src.data.annotations import (
+    GoAnnotation,
+    load_uniprot_go_annotations,
+    parse_uniprot_go_line,
+    resolve_excluded_evidence,
+    stream_uniprot_go_annotations,
+)
 from src.data.uniprot import (
     UniProtRecord,
     create_annotated_dataset,
@@ -16,4 +23,9 @@ __all__ = [
     "load_annotations",
     "load_information_accretion",
     "create_annotated_dataset",
+    "GoAnnotation",
+    "parse_uniprot_go_line",
+    "stream_uniprot_go_annotations",
+    "load_uniprot_go_annotations",
+    "resolve_excluded_evidence",
 ]
