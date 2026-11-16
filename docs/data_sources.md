@@ -134,6 +134,30 @@ BP 250,805 / CC 157,770 / MF 128,452).
 they were released on 2026-07-01, so CAFA6 can now be scored locally instead of
 only submitted. Regime sizes: NK 749, LK 485, PK 6,951 proteins (8,023 unique).
 
+**These are two different measurements.** Our Phase 2 metric is IA-weighted
+F-max over a random `EntryID` holdout of UniProt-derived labels; CAFA6 scores
+*prospective* annotations accumulated after a knowledge cutoff, under NK/LK/PK
+protocols. Same metric family, different experiment. Numbers from the two are
+**not** comparable, so neither may be quoted as the other. Plan: implement our
+metric for reproducible iteration, then cross-check it against `cafaeval` on
+the CAFA6 ground truth before trusting either.
+
+**What still has to be copied by hand.** The competition bundle is behind a
+Kaggle login plus rules acceptance, so no script can fetch it. To verify a
+hand-obtained copy:
+
+| File | Bytes | md5 |
+|---|---|---|
+| `train/train_terms.tsv` | 10,753,628 | `60370a6538d0d12a359439146ea2bd05` |
+| `train/train_sequences.fasta` | 53,314,140 | `71c1e95798ba4ce11b4dd7748c3553d3` |
+| `train/train_taxonomy.tsv` | 1,047,809 | `70d4d56608adef4a18dd12e2b70053c2` |
+| `test/testsuperset.fasta` | 101,114,807 | `94363785fb4dc13bbf15fd996fb7cd0b` |
+| `test/testsuperset-taxon-list.tsv` | 233,491 | `e938b197f14bffa8497bb13e3053bd29` |
+| `sample_submission.tsv` | 480,534 | `e8a710acb033f42c002927d32899076c` |
+
+Also check `train_terms.tsv` against the published breakdown: 537,027
+annotations (BP 250,805 / CC 157,770 / MF 128,452) over 82,404 proteins.
+
 **Official protocol** (from the bundle's README):
 
 ```bash
@@ -150,8 +174,8 @@ UniProtKB:SubCell and RHEA annotations.
 ## Known gaps in this provenance
 
 - The CAFA6 **training/test** bundle still requires a Kaggle login and rules
-  acceptance, so `scripts/download_data.py` cannot fetch it. Keep the local copy
-  and check it against the counts above.
+  acceptance, so `scripts/download_data.py` cannot fetch it; verify a
+  hand-obtained copy against the md5 table above.
 - Downloads record upstream md5 for sources that publish one (CAFA6 figshare) but
   UniProt's `RELEASE.metalink` md5 is not yet wired into the script, so the
   UniProt files remain manually verified.

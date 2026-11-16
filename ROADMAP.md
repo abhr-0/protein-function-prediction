@@ -97,6 +97,11 @@ Acceptance criteria for closing Phase 1:
       predictions by max score over descendants, sweep thresholds, report the maximum.
 - [ ] Wire into the runner with per-aspect (F/P/C) reporting, label-space coverage, and
       provenance in the results JSON. IA weights come from CAFA `IA.tsv`.
+- [ ] Note for whoever reports numbers: our metric runs on a random `EntryID` holdout of
+      UniProt labels, while CAFA6 scores prospective annotations under NK/LK/PK. Same
+      metric family, different experiment — the two numbers are not comparable. Build ours
+      first for reproducibility, then cross-check it against `cafaeval` on the CAFA6
+      ground truth before quoting either.
 
 ## Phase 3 — Extra signals (after Phases 1–2 are stable)
 
@@ -148,7 +153,9 @@ Acceptance criteria for closing Phase 1:
 - The random holdout is optimistic: homologs can appear on both sides of the split.
   Sequence-cluster or temporal splits are future work.
 - Contemporary labels plus a random holdout is not CAFA's future-annotation setting, so
-  absolute numbers will not be comparable to published CAFA leaderboards.
+  absolute numbers will not be comparable to published CAFA leaderboards. Even after
+  Phase 3 adds CAFA6 scoring, our holdout number and a CAFA6 number are two different
+  measurements; never present one as the other.
 - The CAFA6 **evaluation** bundle is fetched by `scripts/download_data.py --include cafa6`
   and md5-verified. The **training/test** bundle still requires a Kaggle login and rules
   acceptance, so those files remain manual (verify them against the counts in
