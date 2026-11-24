@@ -1,0 +1,27 @@
+# ---- Python -------------------------------------------------------------
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- Nix / direnv -------------------------------------------------------
+.direnv/
+
+# ---- Data and run outputs ----------------------------------------------
+# Raw inputs are copied, derived data is rebuilt, runs are outputs.
+data/
+artifacts/
+
+# ---- Notebooks ----------------------------------------------------------
+.ipynb_checkpoints/
+
+# ---- Local scratch ------------------------------------------------------
+PLAN.md
+*.local.md
+scratch/
+
+# ---- OS ----------------------------------------------------------------
+.DS_Store
