@@ -1,6 +1,6 @@
 # ROADMAP.md — Milestones, Locked Decisions, Measured Facts
 
-> Durable phase-level view. Last updated: 2026-11-24.
+> Durable phase-level view. Last updated: 2026-11-25.
 > Branch: `rebuild` (orphan, fresh history). `main` is the previous attempt and
 > is reference only.
 > `PLAN.md` is an optional local (untracked) commit-level checklist; `AGENTS.md`
@@ -13,7 +13,7 @@
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
-| 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | Not started |
+| 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
 | 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | Not started |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
@@ -35,30 +35,31 @@
 - [x] Dev tooling: pytest 9.2.0, ruff 0.17.6.
 - [x] Environment: Python 3.12.16, uv 0.11.21, numpy 2.5.5, scipy 1.18.1,
       scikit-learn 1.9.1, pandas 3.1.1, cafaeval 1.3.0; `uv.lock` tracked.
-- [x] Counts verified: 20,429 proteins, 243,091 annotations; CAFA6 82,403
-      train proteins / 537,027 annotations / 8,024 GT.
+- [x] Counts verified: 20,429 proteins, 243,091 annotations; CAFA6 82,404
+      train proteins / 537,027 annotations / 8,023 GT.
 
 Acceptance met: `uv sync` works from a clean checkout, raw files match the
-documented counts, and no code from the old branch is present. Phase 1 begins
-with `feat: data adapters`.
+documented counts, and no code from the old branch is present. Phase 1 followed
+with `build: make pfpred an installable package`.
 
 ---
 
-## Phase 1 — Data adapters
+## Phase 1 — Data adapters (complete, 2026-11-25)
 
-- Human FASTA streaming + header parsing (accession, taxid, sequence).
-- `DR GO` parsing from the derived human annotation file (and the REST txt
-  stream); key on the primary accession; apply the evidence filter.
-- CAFA6 adapters: `train_terms.tsv`, `train_taxonomy.tsv`, eval ground truth,
-  `test_sequences.fasta`.
-- Caches under `data/derived/cache/` (TSV/TSV.GZ; no parquet dependency).
-- Tests: header parse, GO line parse, evidence policy, human filter, CAFA6
-  counts.
+- [x] `pfpred` packaged with hatchling; `pfpred` console script.
+- [x] `records.py`: `Protein`, `Annotation`, `DataFormatError`, aspect validation.
+- [x] `paths.py`: `Layout` with `PFP_ROOT` override, data paths, `sha256_file`.
+- [x] `io.py`: gzip-aware text open, TSV rows, header validation.
+- [x] `uniprot.py`: streaming human FASTA, annotation TSV, per-aspect label loading.
+- [x] `labels.py`: `curated` evidence policy, grouping, summary statistics.
+- [x] `cafa6.py`: train terms, headerless taxonomy, ground truth, sequences.
+- [x] `cli.py`: `pfpred verify` checks every documented count and exits 1 on drift.
+- [x] Tests: 81 tests on tiny fixtures; no network, no full-data reads.
 
-Acceptance: human files yield 20,429 proteins and 243,091 annotations; the
-`cafa` policy yields 216,272 annotations over 18,630 proteins and 16,442 terms;
-CAFA6 train 82,403 proteins / 537,027 annotations; ground truth 8,024
-(NK 749 / LK 485 / PK 6,951). No full flat file is read.
+Acceptance met: `pfpred verify` reports 20,429 proteins and 243,091 annotations;
+the `curated` policy keeps 216,272 annotations over 18,630 proteins and 16,442
+terms; CAFA6 train 82,404 proteins / 537,027 annotations; ground truth 8,023
+(NK 749 / LK 485 / PK 6,951; 162 in both LK and PK). No full flat file is read.
 
 ---
 
@@ -86,7 +87,7 @@ positive.
   configuration changes.
 
 Acceptance: embeddings for all 20,429 human proteins; deterministic rerun; cache
-documented; Track B embedding plan sized (82,403 + 8,024 sequences).
+documented; Track B embedding plan sized (82,404 + 8,023 sequences).
 
 ---
 
@@ -105,7 +106,7 @@ non-CAFA.
 
 ## Phase 5 — Track B (full CAFA6)
 
-- Train on CAFA6 t0 labels (82,403); predict the 8,024 ground-truth proteins.
+- Train on CAFA6 t0 labels (82,404); predict the 8,023 ground-truth proteins.
 - Prediction writer in CAFA format; `cafaeval` with the frozen graph + IA.
 - PK uses `-known`; NK/LK as provided; per-aspect reporting.
 - Tests: writer format; cafaeval wrapper on toy data.
@@ -137,10 +138,10 @@ flags recorded.
 | Environment | Nix flake + direnv; uv for Python dependencies |
 | Data layout | `data/raw` (read-only inputs), `data/derived` (splits/vocab/embeddings), `artifacts/runs` |
 | Track A universe | Human Swiss-Prot 2026_04, taxid 9606 |
-| Track A labels | UniProt `DR GO`, policy `cafa` (no IEA/ND/NR) |
+| Track A labels | UniProt `DR GO`, policy `curated` (no IEA/ND/NR) |
 | Track A split | MMseqs2 30% clusters, 80/10/10; no random comparison |
 | Track A metric | Micro/macro P/R/F1; no IA/OBO in v1 |
-| Track B universe | Full CAFA6: 82,403 train, 8,024 GT, 1,381 species |
+| Track B universe | Full CAFA6: 82,404 train, 8,023 GT, 1,381 species |
 | Track B labels | CAFA6 `train_terms.tsv` (t0) only |
 | Track B metric | `cafaeval` IA F-max; NK/LK/PK; PK `-known` |
 | GO graph/IA | CAFA6 frozen `go-basic.obo` + `IA.tsv` (Track B) |
@@ -159,15 +160,16 @@ flags recorded.
 | Quantity | Value | How measured |
 |---|---|---|
 | Human Swiss-Prot 2026_04 | 20,429 proteins; 11,417,710 residues; mean 559; max 34,350 | FASTA scan |
-| CAFA6 train | 82,403 proteins; 537,027 annotations; 1,381 species | `train_terms.tsv`, `train_taxonomy.tsv` |
-| CAFA6 ground truth | 8,024 proteins: NK 749, LK 485, PK 6,951 | `May2026_groundtruth_*.tsv` |
-| GT proteins in CAFA6 t0 train | 7,219 of 8,024 | ID intersection |
-| GT proteins in Swiss-Prot 2026_04 | 8,023 of 8,024 | ID intersection |
+| CAFA6 train | 82,404 proteins; 537,027 annotations; 1,381 species | `train_terms.tsv`, `train_taxonomy.tsv` |
+| CAFA6 ground truth | 8,023 proteins: NK 749, LK 485, PK 6,951; 162 in both LK and PK | `May2026_groundtruth_*.tsv` |
+| GT proteins in CAFA6 t0 train | 7,219 of 8,023 | ID intersection |
+| GT proteins in Swiss-Prot 2026_04 | all 8,023; 2,232 are human | ID intersection |
 | Human annotations (all evidence) | 243,091 over 17,317 terms; 19,375 proteins | REST txt stream |
-| Human annotations (`cafa`) | 216,272 over 18,630 proteins; 16,442 terms | evidence filter |
-| Human aspects (`cafa`) | F 46,519 / P 96,961 / C 72,792 | evidence filter |
+| Human annotations (`curated`) | 216,272 over 18,630 proteins; 16,442 terms | evidence filter |
+| Human aspects (`curated`) | F 46,519 / P 96,961 / C 72,792 | evidence filter |
 | Human terms absent from frozen graph | 72 terms; 141 annotations (0.06%) | OBO vs annotations |
 | Raw data on disk (gitignored) | 7.4 MiB UniProt + 295 MiB CAFA6 | `du -sh` |
+| Verification | `uv run pfpred verify` checks 25 counts in ~5 s | exit 0 |
 
 ---
 

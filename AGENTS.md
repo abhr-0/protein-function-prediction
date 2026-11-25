@@ -3,8 +3,8 @@
 > **Project:** sequence-only protein function prediction.
 > **Branch:** `rebuild` (orphan branch; `main` is the previous attempt and is
 > reference only).
-> **Status:** Phase 0 complete (2026-11-24). Phase 1 (data adapters) is next; no
-> Python code yet.
+> **Status:** Phase 1 complete (2026-11-25). Phase 2 (splits and vocabulary) is
+> next.
 > **Companions:** `ROADMAP.md` (milestones, locked decisions, measured facts).
 > `PLAN.md` is an optional local working plan, untracked and possibly stale.
 
@@ -20,8 +20,8 @@ The rebuild runs two experiments on one codebase:
 
 | | Track A — internal benchmark | Track B — CAFA6 benchmark |
 |---|---|---|
-| Protein universe | human Swiss-Prot, taxid 9606, 20,429 proteins | full CAFA6: 82,403 train proteins, 1,381 species |
-| Labels | UniProt `DR GO` (human REST txt, release 2026_04), evidence policy `cafa` | CAFA6 `train/train_terms.tsv` (t0 snapshot) |
+| Protein universe | human Swiss-Prot, taxid 9606, 20,429 proteins | full CAFA6: 82,404 train proteins, 1,381 species |
+| Labels | UniProt `DR GO` (human REST txt, release 2026_04), evidence policy `curated` | CAFA6 `train/train_terms.tsv` (t0 snapshot) |
 | Split | MMseqs2 30% identity clusters, 80/10/10 by cluster | temporal: t0 labels → May 2026 ground truth |
 | Evaluation | micro/macro precision, recall, F1 at a validation-tuned threshold | `cafaeval` IA-weighted F-max, NK/LK/PK |
 | CAFA-comparable | no | yes (with documented caveats) |
@@ -38,13 +38,13 @@ is never a Track A holdout result.
 | Quantity | Value |
 |---|---|
 | Human Swiss-Prot 2026_04 | 20,429 proteins; 11,417,710 residues; mean 559 aa; max 34,350 |
-| CAFA6 train | 82,403 proteins; 537,027 annotations; 1,381 species |
-| CAFA6 ground truth | 8,024 proteins: NK 749, LK 485, PK 6,951 |
-| GT proteins present in CAFA6 t0 train | 7,219 of 8,024 |
-| GT proteins present in Swiss-Prot 2026_04 | 8,023 of 8,024 |
+| CAFA6 train | 82,404 proteins; 537,027 annotations; 1,381 species |
+| CAFA6 ground truth | 8,023 proteins: NK 749, LK 485, PK 6,951 (162 in both LK and PK) |
+| GT proteins present in CAFA6 t0 train | 7,219 of 8,023 |
+| GT proteins present in Swiss-Prot 2026_04 | all 8,023; 2,232 are human |
 | Human annotations (all evidence) | 243,091 over 17,317 terms; 19,375 proteins |
-| Human annotations under `cafa` policy | 216,272 over 18,630 proteins; 16,442 terms |
-| Human aspect counts (`cafa`) | F 46,519 / P 96,961 / C 72,792 |
+| Human annotations under `curated` policy | 216,272 over 18,630 proteins; 16,442 terms |
+| Human aspect counts (`curated`) | F 46,519 / P 96,961 / C 72,792 |
 | Human terms absent from frozen 2025-06 graph | 72 terms; 141 annotations (0.06%) |
 | Embedding compute | Colab T4, fp16, sharded |
 
@@ -59,9 +59,9 @@ is never a Track A holdout result.
 - Build the term vocabulary on the **training split only**, then apply it to
   validation and test. Report test coverage and zero-positive drops.
 - Track B labels must come from CAFA6 `train_terms.tsv` (t0). **Never** train
-  Track B on UniProt 2026_04 labels: 8,023 of 8,024 GT proteins are present in
-  the current Swiss-Prot flat file and may carry post-t0 annotations (7,219
-  already had t0 labels).
+  Track B on UniProt 2026_04 labels: all 8,023 GT proteins are in the full
+  Swiss-Prot 2026_04 flat file and 2,232 are human, so the human files can carry
+  post-t0 annotations (7,219 GT proteins already had t0 labels).
 - Track A and Track B each have their own vocabulary; never share one across
   tracks.
 - Per-aspect protein sets: use proteins with at least one label in that aspect.
@@ -73,7 +73,8 @@ is never a Track A holdout result.
 
 ### 3.2 Labels
 
-- Evidence policy `cafa`: exclude `IEA`, `ND`, `NR`; keep the rest.
+- Evidence policy `curated`: exclude `IEA`, `ND`, `NR`; keep the rest. The name
+  avoids colliding with Track B's CAFA6 benchmark.
 - Train on raw annotations. Do not propagate to GO ancestors during training.
 - Track A v1 reads no ontology: no OBO, no IA, no propagation. Its metric is F1.
 - Track B propagates only at evaluation, via `cafaeval -prop fill`.
@@ -126,10 +127,11 @@ dependencies.
 
 ```bash
 direnv allow                 # or: nix develop
-uv sync                      # core dependencies
+uv sync                      # core + dev dependencies
 uv sync --extra embed        # torch + transformers (usually only on Colab)
-uv run pytest                # once tests exist
+uv run pytest
 uv run ruff check .
+uv run pfpred verify         # raw files vs documented counts
 ```
 
 Do not add dependencies without a reason recorded in `ROADMAP.md` (and, locally,
@@ -143,17 +145,19 @@ Keep the core set small: numpy, scipy, scikit-learn, pandas, pyyaml, cafaeval.
 ```
 configs/             # one YAML per track
 src/pfpred/
-  paths.py           # roots, cache keys
-  uniprot.py         # human FASTA + DR GO streaming
+  records.py         # Protein, Annotation, formatting errors
+  paths.py           # repository layout and data paths
+  io.py              # gzip-aware text and TSV helpers
+  uniprot.py         # human FASTA + annotation adapters
   cafa6.py           # CAFA6 train/GT adapters
-  labels.py          # evidence policy, train-only vocabulary
+  labels.py          # evidence policy, grouping, summary stats
   splits.py          # MMseqs2 clusters -> split
   features/
     base.py          # Embedder protocol + registry
     esm2.py          # ESM-2 extraction and cache
   models.py          # logistic regression, kNN
   evaluate.py        # Track A F1; Track B cafaeval wrapper
-  cli.py             # prepare | cluster | embed | train | evaluate
+  cli.py             # verify | cluster | embed | train | evaluate
 tests/               # tiny fixtures, no network
 notebooks/           # only notebooks/colab_embed.ipynb
 docs/                # data_sources.md, methodology.md
@@ -191,9 +195,10 @@ artifacts/           # gitignored: runs/<run_id>/
 
 ## 7. Current status and next step
 
-Phase 0 is complete: docs, scaffolding, raw data, and a synced environment
-(Python 3.12.16; `uv.lock` tracked). Phase 1 (data adapters) starts with
-`feat: data adapters`; no Python code yet.
+Phase 1 is complete: the `pfpred` package ships adapters for the human UniProt
+files and the CAFA6 bundle, the `curated` evidence policy, and `pfpred verify`,
+which checks every documented count and exits non-zero on drift. Phase 2 (splits
+and vocabulary) is next.
 
 ---
 

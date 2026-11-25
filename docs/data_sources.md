@@ -2,8 +2,8 @@
 
 All source data lives under `data/raw/` (gitignored) and is treated as
 read-only.
-There are no download scripts; the commands below are one-off and recorded for
-reproducibility.
+There are no download scripts; the REST query and derivation rules below are
+recorded for reproducibility.
 
 ---
 
@@ -28,6 +28,19 @@ The stream is 453 MB uncompressed. It is not kept. It is parsed once into:
 | `data/raw/uniprot/human_proteins_2026_04.fasta.gz` | 6.4 MB | 20,429 sequences |
 | `data/raw/uniprot/human_go_annotations_2026_04.tsv.gz` | 1.1 MB | 243,091 rows: `Entry`, `GO`, `Aspect`, `Evidence` |
 
+Derivation rules (regeneration is a short one-off script, deliberately not
+tracked):
+
+1. Entry key = the first accession on the first `AC` line (the primary
+   accession).
+2. Sequence = the `SQ` block with all whitespace removed, headers dropped.
+3. One row per `DR GO` line: `GO`, aspect letter, evidence code.
+4. Evidence = the text after the last `; `, before `:` (`IDA:UniProtKB` →
+   `IDA`).
+5. No deduplication is needed: 243,091 rows are 243,091 unique protein–term
+   pairs.
+6. Output: UTF-8, tab-separated, gzip.
+
 SHA-256 of the files on disk:
 
 ```
@@ -44,13 +57,13 @@ Counts:
 | Annotations (protein–term pairs, all evidence) | 243,091 |
 | Terms | 17,317 |
 | Proteins with at least one annotation | 19,375 |
-| Annotations under `cafa` policy | 216,272 |
-| Proteins under `cafa` policy | 18,630 |
-| Terms under `cafa` policy | 16,442 |
-| Aspect counts (`cafa`) | F 46,519 · P 96,961 · C 72,792 |
+| Annotations under `curated` policy | 216,272 |
+| Proteins under `curated` policy | 18,630 |
+| Terms under `curated` policy | 16,442 |
+| Aspect counts (`curated`) | F 46,519 · P 96,961 · C 72,792 |
 
-The `cafa` policy excludes `IEA`, `ND`, and `NR`; it removes 26,819 IEA-only
-pairs.
+The `curated` policy excludes `IEA`, `ND`, and `NR`; it removes 26,819 IEA-only
+pairs. The name avoids colliding with Track B's CAFA6 benchmark.
 
 The UniProt web TSV `uniprotkb_human_AND_model_organism_9606_2026_11_18.tsv`
 is **not** used: it has no evidence codes and no aspect column.
@@ -80,14 +93,18 @@ Counts:
 
 | Quantity | Value |
 |---|---|
-| Train proteins / annotations / species | 82,403 / 537,027 / 1,381 |
-| Ground-truth proteins | 8,024: NK 749, LK 485, PK 6,951 |
-| GT proteins present in t0 train | 7,219 of 8,024 |
-| GT proteins present in Swiss-Prot 2026_04 | 8,023 of 8,024 |
+| Train proteins / annotations / species | 82,404 / 537,027 / 1,381 |
+| Ground-truth proteins | 8,023: NK 749, LK 485, PK 6,951 (162 in both LK and PK) |
+| GT proteins present in t0 train | 7,219 of 8,023 |
+| GT proteins present in Swiss-Prot 2026_04 | all 8,023; 2,232 are human |
+
+`eval/README.md` states the same ground-truth total (8,023). `train_taxonomy.tsv`
+has no header, so its 82,404 rows are all proteins.
 
 **Leakage rule.** Track B labels must come from `train_terms.tsv` (t0). Do not
-train Track B on the 2026_04 human files: 8,023 of 8,024 GT proteins are in that
-release and may carry post-t0 annotations.
+train Track B on the 2026_04 human files: 2,232 of the 8,023 GT proteins are
+human and may carry post-t0 annotations. All 8,023 are present in the full
+Swiss-Prot 2026_04 flat file.
 
 ---
 
@@ -95,6 +112,14 @@ release and may carry post-t0 annotations.
 
 Track B uses CAFA6's frozen `eval/go-basic.obo` + `eval/IA.tsv`. No official IA
 exists for 2026_04 labels. Track A v1 uses neither; it reports F1.
+
+---
+
+## Verification
+
+`uv run pfpred verify` re-reads the raw files and compares 25 counts against the
+constants in `pfpred.cli.EXPECTED`, exiting 1 on drift. Run it after any data
+change. It takes about 5 seconds.
 
 ---
 

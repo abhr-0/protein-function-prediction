@@ -3,8 +3,9 @@
 Sequence-only prediction of Gene Ontology terms, rebuilt from scratch as two
 experiments that share one codebase.
 
-**Status: Phase 0 complete (2026-11-24). Phase 1 (data adapters) is next. No
-Python code yet.**
+**Status: Phase 1 complete (2026-11-25). Phase 2 (splits and vocabulary) is
+next.** The `pfpred` package has adapters for both tracks and a `pfpred verify`
+command that checks all documented counts.
 See [ROADMAP.md](ROADMAP.md) for milestones. A local, untracked `PLAN.md` may
 hold the current commit-level checklist.
 
@@ -12,8 +13,8 @@ hold the current commit-level checklist.
 
 | | Track A — internal | Track B — CAFA6 |
 |---|---|---|
-| Proteins | human Swiss-Prot 2026_04 (20,429) | full CAFA6 (82,403 train / 8,024 GT) |
-| Labels | UniProt `DR GO`, policy `cafa` | CAFA6 `train_terms.tsv` (t0) |
+| Proteins | human Swiss-Prot 2026_04 (20,429) | full CAFA6 (82,404 train / 8,023 GT) |
+| Labels | UniProt `DR GO`, policy `curated` | CAFA6 `train_terms.tsv` (t0) |
 | Split | MMseqs2 30% clusters, 80/10/10 | temporal: t0 → May 2026 |
 | Metric | micro/macro P/R/F1 | cafaeval IA F-max, NK/LK/PK |
 | CAFA-comparable | no | yes |
@@ -43,7 +44,7 @@ data/raw/cafa6/sample_submission.tsv
 ```
 
 `data/raw/` is read-only. `data/` and `artifacts/` are gitignored. There are no
-download scripts; the one-off UniProt command, hashes, and counts are in
+download scripts; the UniProt query, derivation rules, hashes, and counts are in
 [docs/data_sources.md](docs/data_sources.md).
 
 ## Environment
@@ -53,7 +54,8 @@ Nix + direnv provide Python, uv, and MMseqs2:
 ```bash
 direnv allow        # or: nix develop
 uv sync
-uv run pytest       # once tests exist
+uv run pytest
+uv run pfpred verify
 ```
 
 Python dependencies are managed by `uv`; see `pyproject.toml`. ESM-2 inference
@@ -62,8 +64,8 @@ is optional (`uv sync --extra embed`) and normally runs on Colab.
 ## Layout
 
 ```
-configs/            # one YAML per track (added with code)
-src/pfpred/         # package (added with code)
+configs/            # one YAML per track (later phases)
+src/pfpred/         # adapters, policy, and CLI
 tests/              # tiny fixtures, no network
 notebooks/          # only the Colab embedding notebook
 docs/               # data sources and methodology
