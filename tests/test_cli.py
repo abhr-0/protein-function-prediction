@@ -118,3 +118,20 @@ def test_cluster_command_invokes_clustering(
         "seed": 9,
     }
     assert "total_proteins" in capsys.readouterr().out
+
+
+
+def test_cluster_command_reports_malformed_fasta_without_traceback(
+    mini_layout: Path, capsys,
+) -> None:
+    from pfpred import cli
+    from pfpred.paths import Layout
+
+    layout = Layout(mini_layout)
+    layout.human_fasta.parent.mkdir(parents=True, exist_ok=True)
+    layout.human_fasta.write_text("not a FASTA record\n", encoding="utf-8")
+
+    assert main(["cluster", "--root", str(mini_layout)]) == 1
+    captured = capsys.readouterr()
+    assert "clustering failed" in captured.err
+    assert "Traceback" not in captured.err
