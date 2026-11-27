@@ -71,6 +71,10 @@ class Layout:
         return self.human_dir / HUMAN_ANNOTATIONS_NAME
 
     @property
+    def human_split(self) -> Path:
+        return self.derived / "human_split.json"
+
+    @property
     def cafa6_dir(self) -> Path:
         return self.raw / "cafa6"
 
