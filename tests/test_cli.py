@@ -83,6 +83,7 @@ def test_main_requires_a_command() -> None:
 def test_expected_has_no_nested_mismatch() -> None:
     assert set(EXPECTED) >= {"human.proteins", "cafa6.train.proteins", "gt.union"}
 
+
 def test_cluster_command_invokes_clustering(
     mini_layout: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
