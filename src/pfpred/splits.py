@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import subprocess
 import tempfile
@@ -22,6 +23,17 @@ SPLIT_NAMES = tuple(SPLIT_RATIOS)
 
 class SplitError(ValueError):
     """Raised when cluster output cannot produce a valid leakage-safe split."""
+
+
+def _run_mmseqs(
+    executable: str, arguments: Sequence[str], **kwargs: object
+) -> subprocess.CompletedProcess[str]:
+    """Run MMseqs2, using cmd.exe for Windows batch-file launchers."""
+    if os.name == "nt" and Path(executable).suffix.lower() in {".bat", ".cmd"}:
+        command = ["cmd.exe", "/d", "/c", "call", executable, *arguments]
+    else:
+        command = [executable, *arguments]
+    return subprocess.run(command, **kwargs)
 
 
 def read_cluster_tsv(
@@ -176,8 +188,9 @@ def run_clustering(
         raise SplitError(f"FASTA contains no proteins: {fasta_path}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    version_result = subprocess.run(
-        [mmseqs_executable, "version"],
+    version_result = _run_mmseqs(
+        mmseqs_executable,
+        ["version"],
         check=True,
         capture_output=True,
         text=True,
@@ -193,8 +206,7 @@ def run_clustering(
         prefix = work_dir / "human"
         tmp_dir = work_dir / "tmp"
         tmp_dir.mkdir()
-        command = [
-            mmseqs_executable,
+        arguments = [
             "easy-cluster",
             str(fasta_path),
             str(prefix),
@@ -206,7 +218,7 @@ def run_clustering(
             "--cov-mode",
             str(COVERAGE_MODE),
         ]
-        subprocess.run(command, check=True)
+        _run_mmseqs(mmseqs_executable, arguments, check=True)
         cluster_path = Path(f"{prefix}_cluster.tsv")
         clusters = read_cluster_tsv(cluster_path, seen_accessions)
         cluster_to_split = assign_cluster_splits(clusters, seed=seed)
