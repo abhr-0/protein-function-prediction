@@ -12,7 +12,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from pfpred.paths import sha256_file
-from pfpred.records import DataFormatError
 from pfpred.uniprot import read_fasta
 
 MIN_SEQ_ID = 0.30
@@ -77,7 +76,7 @@ def read_cluster_tsv(
     for representative, members in clusters.items():
         if representative not in members:
             raise SplitError(
-                f"{path}: representative {representative!r} is absent from its cluster"
+                f"{path}: representative {representative!r} is absent from its own cluster"
             )
     missing = expected_accessions - seen
     if missing:
@@ -261,7 +260,7 @@ def validate_split_payload(payload: Mapping[str, object]) -> None:
         if previous != label:
             raise SplitError(f"cluster {cluster!r} is divided across splits")
         protein_counts[label] += 1
-    for cluster, label in cluster_labels.items():
+    for _cluster, label in cluster_labels.items():
         cluster_counts[label] += 1
     if any(protein_counts[name] == 0 for name in SPLIT_NAMES):
         raise SplitError("split payload contains an empty split")
