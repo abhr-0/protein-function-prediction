@@ -4,8 +4,8 @@
 > **Branch:** `rebuild` (orphan branch; `main` is the previous attempt and is
 > reference only).
 > **Status:** Phase 1 complete (2026-11-25). Phase 2 is in progress: Task A
-> clustering/splits completed and validated on real data (2026-11-27); Task B
-> train-only vocabulary remains.
+> clustering/splits are under revalidation after a cross-split homology review;
+> Task B train-only vocabulary follows after Task A is accepted.
 > **Companions:** `ROADMAP.md` (milestones, locked decisions, measured facts).
 > `PLAN.md` is an optional local working plan, untracked and possibly stale.
 
@@ -23,7 +23,7 @@ The rebuild runs two experiments on one codebase:
 |---|---|---|
 | Protein universe | human Swiss-Prot, taxid 9606, 20,429 proteins | full CAFA6: 82,404 train proteins, 1,381 species |
 | Labels | UniProt `DR GO` (human REST txt, release 2026_04), evidence policy `curated` | CAFA6 `train/train_terms.tsv` (t0 snapshot) |
-| Split | MMseqs2 30% identity + 80% bidirectional coverage, 80/10/10 by whole cluster | temporal: t0 labels → May 2026 ground truth |
+| Split | MMseqs2 30% identity + 80% bidirectional coverage, then independent validation/test-versus-train homology check; offending whole clusters move to train | temporal: t0 labels → May 2026 ground truth |
 | Evaluation | micro/macro precision, recall, F1 at a validation-tuned threshold | `cafaeval` IA-weighted F-max, NK/LK/PK |
 | CAFA-comparable | no | yes (with documented caveats) |
 | Aspect model | one run per aspect, MF first | one run per aspect, MF first |
@@ -199,9 +199,10 @@ artifacts/           # gitignored: runs/<run_id>/
 Phase 1 is complete: the `pfpred` package ships adapters for the human UniProt
 files and the CAFA6 bundle, the `curated` evidence policy, and `pfpred verify`,
 which checks every documented count and exits non-zero on drift. Phase 2 is in
-progress: Task A clustering/splits have been run and validated on the supplied
-Human Swiss-Prot FASTA (20,429 proteins, 13,070 clusters, zero cross-split
-clusters); Task B (train-only vocabulary) remains.
+progress: Task A is being revalidated. Cluster membership alone is not treated as
+a leakage guarantee; the split artifact must include a successful independent
+zero-hit search of validation and test against train. Task B (train-only vocabulary)
+starts only after Task A is accepted.
 
 ---
 
@@ -209,9 +210,10 @@ clusters); Task B (train-only vocabulary) remains.
 
 - Track A uses contemporary labels and a clustered holdout; it is not a temporal
   or CAFA benchmark.
-- Clustering at 30% identity and 80% bidirectional coverage still leaves
-  sub-threshold homology; numbers remain
-  optimistic relative to a truly novel protein.
+- MMseqs2 clustering does not guarantee that every qualifying pair lands in the
+  same cluster. Task A therefore checks validation and test against train directly;
+  whole offending clusters are moved to train until the search returns zero hits.
+  This can change the nominal 80/10/10 split proportions.
 - Track B follows CAFA6's temporal protocol; PK scores only terms not known at
   t0, and NK/LK are smaller.
 - The frozen 2025-06 graph drops 0.06% of human annotations; irrelevant to Track
