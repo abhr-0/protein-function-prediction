@@ -9,6 +9,7 @@ import pytest
 from pfpred.splits import (
     SplitError,
     _is_windows_batch,
+    _repair_and_check_leakage,
     _run_mmseqs,
     assign_cluster_splits,
     load_split,
@@ -179,3 +180,45 @@ def test_windows_batch_detection_and_invocation(monkeypatch: pytest.MonkeyPatch)
         "cmd.exe", "/d", "/c", "call",
         r"C:\Program Files (x86)\mmseqs\mmseqs.bat", "version",
     ]]
+
+
+
+def test_leakage_repair_moves_entire_offending_cluster_to_train(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clusters = {
+        "P1": ("P1",),
+        "P2": ("P2", "P2b"),
+        "P3": ("P3",),
+    }
+    assignments = {"P1": "train", "P2": "validation", "P3": "test"}
+    sequences = {name: "ACDE" for members in clusters.values() for name in members}
+    calls = 0
+
+    def fake_search(
+        executable: str, query: Path, target: Path, work_dir: Path, label: str,
+    ) -> set[str]:
+        nonlocal calls
+        calls += 1
+        return {"P2"} if calls == 1 else set()
+
+    monkeypatch.setattr("pfpred.splits._search_hits", fake_search)
+    result = _repair_and_check_leakage(
+        "mmseqs", clusters, assignments, sequences, tmp_path,
+    )
+
+    assert assignments == {"P1": "train", "P2": "train", "P3": "test"}
+    assert result["hits"] == 0
+    assert result["moved_clusters_to_train"] == 1
+    assert result["moved_proteins_to_train"] == 2
+
+
+def test_validate_split_payload_rejects_empty_partition() -> None:
+    payload = _valid_payload()
+    payload["assignments"].pop("P4")
+    payload["split"]["protein_counts"]["test"] = 0
+    payload["split"]["cluster_counts"]["test"] = 0
+    payload["split"]["total_proteins"] = 3
+    payload["split"]["total_clusters"] = 2
+    with pytest.raises(SplitError, match="empty split"):
+        validate_split_payload(payload)
