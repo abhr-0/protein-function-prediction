@@ -3,8 +3,8 @@
 > **Project:** sequence-only protein function prediction.
 > **Branch:** `rebuild` (orphan branch; `main` is the previous attempt and is
 > reference only).
-> **Status:** Phase 1 complete (2026-11-25). Phase 2 (splits and vocabulary) is
-> next.
+> **Status:** Phase 1 complete (2026-11-25). Phase 2 is in progress: Task A
+> clustering/split code is implemented; the real-data run and Task B remain.
 > **Companions:** `ROADMAP.md` (milestones, locked decisions, measured facts).
 > `PLAN.md` is an optional local working plan, untracked and possibly stale.
 
@@ -206,7 +206,8 @@ and vocabulary) is next.
 
 - Track A uses contemporary labels and a clustered holdout; it is not a temporal
   or CAFA benchmark.
-- Clustering at 30% still leaves homology below the threshold; numbers remain
+- Clustering at 30% identity and 80% bidirectional coverage still leaves
+  sub-threshold homology; numbers remain
   optimistic relative to a truly novel protein.
 - Track B follows CAFA6's temporal protocol; PK scores only terms not known at
   t0, and NK/LK are smaller.

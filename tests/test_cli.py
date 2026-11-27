@@ -82,3 +82,38 @@ def test_main_requires_a_command() -> None:
 
 def test_expected_has_no_nested_mismatch() -> None:
     assert set(EXPECTED) >= {"human.proteins", "cafa6.train.proteins", "gt.union"}
+
+def test_cluster_command_invokes_clustering(
+    mini_layout: Path, monkeypatch: pytest.MonkeyPatch, capsys
+) -> None:
+    from pfpred import cli
+    from pfpred.paths import Layout
+
+    captured: dict[str, object] = {}
+
+    def fake_run_clustering(
+        fasta_path: Path,
+        output_path: Path,
+        *,
+        mmseqs_executable: str,
+        seed: int,
+    ) -> dict[str, object]:
+        captured.update(
+            fasta_path=fasta_path,
+            output_path=output_path,
+            mmseqs_executable=mmseqs_executable,
+            seed=seed,
+        )
+        return {"split": {"total_proteins": 3}}
+
+    monkeypatch.setattr(cli, "run_clustering", fake_run_clustering)
+
+    assert main(["cluster", "--root", str(mini_layout), "--seed", "9"]) == 0
+    layout = Layout(mini_layout)
+    assert captured == {
+        "fasta_path": layout.human_fasta,
+        "output_path": layout.derived / "human_split.json",
+        "mmseqs_executable": "mmseqs",
+        "seed": 9,
+    }
+    assert "total_proteins" in capsys.readouterr().out

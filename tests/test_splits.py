@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,6 +10,7 @@ from pfpred.splits import (
     SplitError,
     assign_cluster_splits,
     read_cluster_tsv,
+    run_clustering,
 )
 
 
@@ -73,7 +76,13 @@ def test_assign_cluster_splits_is_deterministic_and_keeps_clusters_whole() -> No
 
     assert first == second
     assert set(first) == set(clusters)
-    assert all(split in {"train", "validation", "test"} for split in first.values())
+    protein_splits = {
+        member: first[representative]
+        for representative, members in clusters.items()
+        for member in members
+    }
+    for members in clusters.values():
+        assert len({protein_splits[member] for member in members}) == 1
 
 
 def test_assign_cluster_splits_rejects_overlapping_clusters() -> None:
@@ -86,3 +95,38 @@ def test_assign_cluster_splits_rejects_overlapping_clusters() -> None:
 def test_assign_cluster_splits_rejects_empty_input() -> None:
     with pytest.raises(SplitError, match="empty cluster collection"):
         assign_cluster_splits({})
+
+
+def test_run_clustering_writes_provenance_and_assignments(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fasta = tmp_path / "mini.fasta"
+    fasta.write_text(">P1\nACD\n>P2\nACE\n>P3\nFGH\n", encoding="utf-8")
+    output = tmp_path / "derived" / "human_split.json"
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        if command[1] == "version":
+            return SimpleNamespace(stdout="MMseqs2 test-version", stderr="")
+        assert command[1] == "easy-cluster"
+        assert command[6:] == ["0.30", "-c", "0.80", "--cov-mode", "0"]
+        prefix = Path(command[3])
+        Path(f"{prefix}_cluster.tsv").write_text(
+            "P1\tP1\nP1\tP2\nP3\tP3\n",
+            encoding="utf-8",
+        )
+        return SimpleNamespace(stdout="", stderr="")
+
+    monkeypatch.setattr("pfpred.splits.subprocess.run", fake_run)
+
+    payload = run_clustering(fasta, output, seed=11)
+
+    assert output.exists()
+    assert json.loads(output.read_text(encoding="utf-8")) == payload
+    assert payload["mmseqs"]["version"] == "MMseqs2 test-version"
+    assert payload["mmseqs"]["parameters"] == {
+        "min_seq_id": 0.30,
+        "coverage": 0.80,
+        "coverage_mode": 0,
+    }
+    assert payload["split"]["total_proteins"] == 3
+    assert payload["split"]["total_clusters"] == 2
