@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from pfpred.splits import (
+    _run_mmseqs,
     SplitError,
     assign_cluster_splits,
     read_cluster_tsv,
@@ -130,3 +131,36 @@ def test_run_clustering_writes_provenance_and_assignments(
     }
     assert payload["split"]["total_proteins"] == 3
     assert payload["split"]["total_clusters"] == 2
+
+
+
+def test_run_mmseqs_uses_cmd_for_windows_batch_files(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        calls.append(command)
+        return SimpleNamespace(stdout="MMseqs2 test-version", stderr="")
+
+    monkeypatch.setattr("pfpred.splits.os.name", "nt")
+    monkeypatch.setattr("pfpred.splits.subprocess.run", fake_run)
+
+    _run_mmseqs(
+        r"C:\Program Files (x86)\mmseqs\mmseqs.bat",
+        ["version"],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert calls == [
+        [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "call",
+            r"C:\Program Files (x86)\mmseqs\mmseqs.bat",
+            "version",
+        ]
+    ]
