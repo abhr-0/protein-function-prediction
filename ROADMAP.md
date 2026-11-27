@@ -1,6 +1,6 @@
 # ROADMAP.md — Milestones, Locked Decisions, Measured Facts
 
-> Durable phase-level view. Last updated: 2026-11-27.
+> Durable phase-level view. Last updated: 2026-11-28.
 > Branch: `rebuild` (orphan, fresh history). `main` is the previous attempt and
 > is reference only.
 > `PLAN.md` is an optional local (untracked) commit-level checklist; `AGENTS.md`
@@ -14,7 +14,7 @@
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
 | 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
-| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | **In progress: Task A revalidation; Task B vocabulary remains** |
+| 2 | Splits and vocabulary: clusters, vocab | **Task A complete; Task B remains** |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
 | 5 | Track B: full CAFA6, cafaeval, NK/LK/PK | Not started |
@@ -53,8 +53,8 @@ with `build: make pfpred an installable package`.
 - [x] `uniprot.py`: streaming human FASTA, annotation TSV, per-aspect label loading.
 - [x] `labels.py`: `curated` evidence policy, grouping, summary statistics.
 - [x] `cafa6.py`: CAFA6 train terms, headerless taxonomy, ground truth, sequences.
-- [x] `cli.py`: `pfpred verify` checks every documented count and exits 1 on drift.
-- [x] Tests: 81 tests on tiny fixtures; no network, no full-data reads.
+- [x] `cli.py`: `pfpred verify` checks the 25 raw-data counts and exits 1 on drift.
+- [x] Tests: 113 tests on tiny fixtures; no network, no full-data reads.
 
 Acceptance met: `pfpred verify` reports 20,429 proteins and 243,091 annotations;
 the `curated` policy keeps 216,272 annotations over 18,630 proteins and 16,442
@@ -71,15 +71,39 @@ terms; CAFA6 train 82,404 proteins / 537,027 annotations; ground truth 8,023
 - [x] MMseqs2 `easy-cluster`: 30% minimum identity, 80% bidirectional coverage;
       clustering semantics are explicit and recorded.
 - [x] Validate that every FASTA accession appears exactly once in cluster output.
-- [x] Deterministic, insertion-order-independent largest-cluster-first assignment; keep each cluster indivisible.
+- [x] Deterministic, insertion-order-independent largest-cluster-first assignment;
+      keep each cluster indivisible.
 - [x] Record FASTA SHA-256, MMseqs2 version/parameters, seed, protein counts,
       cluster counts, and per-protein assignments in JSON.
 - [x] Synthetic tests for TSV parsing, malformed/duplicate/missing members,
       deterministic assignment, and cluster integrity.
-- [ ] Re-run clustering with explicit MMseqs2 semantics and iterative validation/test-versus-train homology repair.
-- [ ] Confirm `leak_check.hits == 0`; record final measured protein/cluster counts and ratios from the regenerated JSON.
-- [ ] Verify JSON integrity, no cross-split clusters, and no empty splits.
-- [ ] Runtime validation on Windows: `pfpred verify`, `pytest`, and `ruff check .`.
+- [x] Re-run clustering with explicit MMseqs2 semantics and iterative
+      validation/test-versus-train homology repair: 3 rounds; 509 holdout query
+      proteins hit train across those rounds; 155 clusters / 689 proteins moved
+      to train.
+- [x] Confirm `leak_check.hits == 0` at the recorded settings (min seq id 0.30,
+      coverage 0.80, `--cov-mode 0`, sensitivity 5.0, max-seqs 1000) and record
+      the measured counts: train 17,032 proteins / 11,093 clusters, validation
+      1,718 / 1,284, test 1,679 / 1,292 (83.37% / 8.41% / 8.22%).
+- [x] Verify JSON integrity, no cross-split clusters, and no empty splits
+      (schema 3, `human_split.json`).
+- [x] Runtime validation on Linux x86_64 in the Nix dev shell (MMseqs2 18-8cc5c,
+      86 s): `pfpred verify`, `pytest` (113 tests), `ruff check .`.
+
+**Reproducibility.** The artifact is the local contract for this run: it embeds
+per-protein cluster assignments, counts, probe results, the platform (`linux`,
+x86_64, Python 3.12.16), the MMseqs2 executable and version, and parameters.
+Schema 3 requires the provenance fields (platform, Python version, MMseqs2
+executable, 64-hex input digest) and the pinned clustering/probe parameters;
+artifacts missing them are rejected. It is gitignored, so it cannot be
+retrieved from the repository and must be regenerated with `pfpred cluster` on
+the recorded build. A rerun on the same machine and build is bit-identical;
+other builds differ (a different MMseqs2 build produced 13,677 clusters and
+slightly different counts). Quote split numbers with the artifact hash and
+platform. This build: executable
+`/nix/store/r191gmcpvlj7r4488bambm7f39wfm7ax-mmseqs2-18-8cc5c/bin/mmseqs`,
+schema 3, 1,504,137 bytes, SHA-256
+`d5ef27980bc100f82e1257de1da9781275c9c32ab047432cdf985fa52a81b6c3`.
 
 ### Task B — Train-only vocabulary
 
@@ -152,10 +176,12 @@ flags recorded.
 |---|---|
 | Branch | Orphan `rebuild`, fresh history |
 | Environment | Nix flake + direnv; uv for Python dependencies |
-| Data layout | `data/raw` (read-only inputs), `data/derived` (splits/vocab/embeddings), `artifacts/runs` |
+| Data layout | `data/raw` read-only, `data/derived`, `artifacts/runs` |
 | Track A universe | Human Swiss-Prot 2026_04, taxid 9606 |
 | Track A labels | UniProt `DR GO`, evidence policy `curated` (no IEA/ND/NR) |
-| Track A split | MMseqs2 `easy-cluster`, 30% identity, 80% bidirectional coverage (`-c 0.80 --cov-mode 0`), target 80/10/10 by protein count with whole clusters |
+| Track A split | MMseqs2 `easy-cluster`, 30% identity, 80% coverage (`-c 0.80 --cov-mode 0`) |
+| Track A split ratios | 80/10/10 target before repair; realized 83.37/8.41/8.22 in artifact |
+| Track A leakage | Holdout-vs-train repair to 0 hits at s=5.0; probes recorded |
 | Track A metric | Micro/macro P/R/F1; no IA/OBO in v1 |
 | Track B universe | Full CAFA6: 82,404 train, 8,023 GT, 1,381 species |
 | Track B labels | CAFA6 `train_terms.tsv` (t0) only |
@@ -175,9 +201,9 @@ flags recorded.
 
 | Quantity | Value | How measured |
 |---|---|---|
-| Human Swiss-Prot 2026_04 | 20,429 proteins; 11,417,710 residues; mean 559; max 34,350 | FASTA scan |
-| CAFA6 train | 82,404 proteins; 537,027 annotations; 1,381 species | `train_terms.tsv`, `train_taxonomy.tsv` |
-| CAFA6 ground truth | 8,023 proteins: NK 749, LK 485, PK 6,951; 162 in both LK and PK | `May2026_groundtruth_*.tsv` |
+| Human Swiss-Prot 2026_04 | 20,429 proteins; 11,417,710 residues; mean 559 aa; max 34,350 | FASTA |
+| CAFA6 train | 82,404 proteins; 537,027 annotations; 1,381 species | `train_terms.tsv` |
+| CAFA6 ground truth | 8,023 proteins: NK 749, LK 485, PK 6,951; 162 shared | GT TSVs |
 | GT proteins in CAFA6 t0 train | 7,219 of 8,023 | ID intersection |
 | GT proteins in Swiss-Prot 2026_04 | all 8,023; 2,232 are human | ID intersection |
 | Human annotations (all evidence) | 243,091 over 17,317 terms; 19,375 proteins | REST txt stream |
@@ -186,8 +212,16 @@ flags recorded.
 | Human terms absent from frozen graph | 72 terms; 141 annotations (0.06%) | OBO vs annotations |
 | Raw data on disk (gitignored) | 7.4 MiB UniProt + 295 MiB CAFA6 | `du -sh` |
 | Verification | `uv run pfpred verify` checks 25 counts in ~5 s | exit 0 |
-| Track A clustered split | Pending rerun after leakage repair changes | Regenerate `human_split.json` on local data |
-| Split integrity | Must show zero cross-split clusters and zero above-threshold train hits | Split JSON validator and MMseqs2 easy-search leakage check |
+| Track A train split | 17,032 proteins; 11,093 clusters; max 401, mean 1.54 | `pfpred cluster` |
+| Track A validation split | 1,718 proteins; 1,284 clusters; max 19, mean 1.34 | `pfpred cluster` |
+| Track A test split | 1,679 proteins; 1,292 clusters; max 24, mean 1.30 | `pfpred cluster` |
+| Track A split totals | 20,429 proteins; 13,669 clusters; 83.37/8.41/8.22% | split artifact |
+| Track A leakage gate | 0 hits after 3 repair rounds | 30%/80%, s=5.0 |
+| Track A repair hits | 509 holdout query proteins hit train across 3 rounds | leak check |
+| Track A repair volume | 155 clusters / 689 proteins moved to train | split artifact |
+| Cross-check | val→test ≥8 proteins, max id 0.604; test→val ≥6, max id 0.75 | s=5.0; ≤1000 hits |
+| Strict probe | val→train ≥5, max id 0.438; test→train ≥9, max 0.591 | s=7.5, capped at 1000 |
+| Split artifact | schema 3; 1,504,137 B; linux x86_64 | `d5ef2798…a81b6c3` |
 
 ---
 
@@ -210,10 +244,11 @@ flags recorded.
 
 - Track A uses contemporary labels and a clustered holdout; it is not a temporal
   or CAFA benchmark.
-- Clustering membership alone does not prove pairwise separation: qualifying homologous
-  pairs can remain in different clusters. The benchmark therefore performs an
-  independent validation/test-versus-train search and moves offending whole clusters
-  into train; final split ratios may differ from 80/10/10.
+- Clustering membership alone does not prove pairwise separation: qualifying
+  homologous pairs can remain in different clusters. The benchmark therefore
+  runs a separate validation/test-versus-train search at the same 30%/80%
+  thresholds and moves offending whole clusters into train; final split ratios
+  may differ from 80/10/10.
 - Track B is the CAFA-comparable number, but PK scores only post-t0 terms and
   NK/LK are smaller.
 - The frozen graph drops 0.06% of human annotations (no effect on Track A v1).

@@ -3,9 +3,10 @@
 Sequence-only prediction of Gene Ontology terms, rebuilt from scratch as two
 experiments that share one codebase.
 
-**Status: Phase 1 complete (2026-11-25). Phase 2 (splits and vocabulary) is
-next.** The `pfpred` package has adapters for both tracks and a `pfpred verify`
-command that checks all documented counts.
+**Status: Phase 1 complete (2026-11-25). Phase 2 in progress: Task A complete
+with the leakage-checked split; Task B (vocabulary) next.** The `pfpred`
+package has adapters for both tracks, a `pfpred verify` command that checks the
+25 raw-data counts, and `pfpred cluster` for Track A splits.
 See [ROADMAP.md](ROADMAP.md) for milestones. A local, untracked `PLAN.md` may
 hold the current commit-level checklist.
 
@@ -15,7 +16,7 @@ hold the current commit-level checklist.
 |---|---|---|
 | Proteins | human Swiss-Prot 2026_04 (20,429) | full CAFA6 (82,404 train / 8,023 GT) |
 | Labels | UniProt `DR GO`, policy `curated` | CAFA6 `train_terms.tsv` (t0) |
-| Split | MMseqs2 30% clusters, 80/10/10 | temporal: t0 → May 2026 |
+| Split | MMseqs2 30% whole clusters; holdout-vs-train repair; ~83/8/8 | temporal: t0 → May 2026 |
 | Metric | micro/macro P/R/F1 | cafaeval IA F-max, NK/LK/PK |
 | CAFA-comparable | no | yes |
 

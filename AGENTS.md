@@ -3,9 +3,11 @@
 > **Project:** sequence-only protein function prediction.
 > **Branch:** `rebuild` (orphan branch; `main` is the previous attempt and is
 > reference only).
-> **Status:** Phase 1 complete (2026-11-25). Phase 2 is in progress: Task A
-> clustering/splits are under revalidation after a cross-split homology review;
-> Task B train-only vocabulary follows after Task A is accepted.
+> **Status:** Phase 1 complete (2026-11-25). Phase 2 in progress: Task A
+> (clustering and splits) is complete and revalidated with a separate
+> holdout-vs-train search, plus recorded val↔test and stricter-sensitivity
+> probes (2026-11-27); Task B (train-only vocabulary) is next, built on the
+> post-repair train split of 17,032 proteins.
 > **Companions:** `ROADMAP.md` (milestones, locked decisions, measured facts).
 > `PLAN.md` is an optional local working plan, untracked and possibly stale.
 
@@ -21,10 +23,12 @@ The rebuild runs two experiments on one codebase:
 
 | | Track A — internal benchmark | Track B — CAFA6 benchmark |
 |---|---|---|
-| Protein universe | human Swiss-Prot, taxid 9606, 20,429 proteins | full CAFA6: 82,404 train proteins, 1,381 species |
-| Labels | UniProt `DR GO` (human REST txt, release 2026_04), evidence policy `curated` | CAFA6 `train/train_terms.tsv` (t0 snapshot) |
-| Split | MMseqs2 30% identity + 80% bidirectional coverage, then independent validation/test-versus-train homology check; offending whole clusters move to train | temporal: t0 labels → May 2026 ground truth |
-| Evaluation | micro/macro precision, recall, F1 at a validation-tuned threshold | `cafaeval` IA-weighted F-max, NK/LK/PK |
+| Universe | human Swiss-Prot, taxid 9606, 20,429 | full CAFA6: 82,404 train, 1,381 species |
+| Labels | UniProt `DR GO` 2026_04, policy `curated` | CAFA6 `train/train_terms.tsv` (t0) |
+| Split | MMseqs2 30% id, 80% coverage, whole clusters | temporal: t0 labels → May 2026 GT |
+| Leakage check | holdout-vs-train repair to zero hits (s=5.0) | not performed (temporal) |
+| Recorded residuals | val↔test and strict-sensitivity probes | not applicable |
+| Evaluation | micro/macro P/R/F1, validation-tuned threshold | `cafaeval` IA F-max, NK/LK/PK |
 | CAFA-comparable | no | yes (with documented caveats) |
 | Aspect model | one run per aspect, MF first | one run per aspect, MF first |
 
@@ -198,11 +202,13 @@ artifacts/           # gitignored: runs/<run_id>/
 
 Phase 1 is complete: the `pfpred` package ships adapters for the human UniProt
 files and the CAFA6 bundle, the `curated` evidence policy, and `pfpred verify`,
-which checks every documented count and exits non-zero on drift. Phase 2 is in
-progress: Task A is being revalidated. Cluster membership alone is not treated as
-a leakage guarantee; the split artifact must include a successful independent
-zero-hit search of validation and test against train. Task B (train-only vocabulary)
-starts only after Task A is accepted.
+which checks the 25 raw-data counts and exits non-zero on drift; split numbers
+come from the artifact. Phase 2 is in progress: Task A is complete and
+revalidated with a separate holdout-vs-train search at the same 30%/80%
+thresholds, plus recorded val↔test and stricter-sensitivity probes; cluster
+membership alone is not treated as a leakage guarantee. Task B (train-only
+vocabulary) is next: build the vocabulary on the post-repair train split
+(17,032 proteins), not the pre-repair split.
 
 ---
 
@@ -214,6 +220,21 @@ starts only after Task A is accepted.
   same cluster. Task A therefore checks validation and test against train directly;
   whole offending clusters are moved to train until the search returns zero hits.
   This can change the nominal 80/10/10 split proportions.
+- The zero-hit gate is relative to the recorded search (30% identity, 80%
+  coverage, sensitivity 5.0). At sensitivity 7.5 a small residual remains:
+  at least 5 validation and at least 9 test query proteins, max identity 0.591
+  (search capped at 1000 hits per query).
+- Validation and test are not separated from each other: at least 8 and at
+  least 6 query proteins have hits, max identity 0.75 (search capped at 1000
+  hits per query). This matters because the threshold is tuned on validation
+  and applied to test.
+- Repair moves whole clusters into train, so realized ratios are 83.37/8.41/8.22
+  rather than 80/10/10, and the holdouts are homology-depleted relative to train.
+- Clustering, and therefore the exact split, depends on the MMseqs2 build and
+  platform; the artifact is local and gitignored, and its hash plus recorded
+  platform identify it.
+- Linux in the Nix shell is the validated target; the `.bat`/`.cmd` launcher
+  path is unit-tested, but Windows is not a validated target.
 - Track B follows CAFA6's temporal protocol; PK scores only terms not known at
   t0, and NK/LK are smaller.
 - The frozen 2025-06 graph drops 0.06% of human annotations; irrelevant to Track
