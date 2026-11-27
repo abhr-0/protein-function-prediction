@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -11,6 +12,7 @@ from pathlib import Path
 from pfpred import cafa6
 from pfpred.labels import CURATED, filter_annotations, summarize
 from pfpred.paths import Layout
+from pfpred.splits import SplitError, run_clustering
 from pfpred.uniprot import read_annotations, read_fasta
 
 GROUNDTRUTH_KINDS = ("NK", "LK", "PK")
@@ -130,24 +132,57 @@ def main(argv: Sequence[str] | None = None) -> int:
     verify.add_argument("--json", action="store_true", help="print counts as JSON")
     verify.add_argument("--no-check", action="store_true", help="print counts without comparing")
 
+    cluster = subparsers.add_parser(
+        "cluster", help="cluster Track A proteins and create leakage-safe splits"
+    )
+    cluster.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="project root containing data/ (default: PFP_ROOT or the repository)",
+    )
+    cluster.add_argument("--seed", type=int, default=42, help="deterministic split seed")
+    cluster.add_argument("--mmseqs", default="mmseqs", help="MMseqs2 executable")
+    cluster.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="output JSON path (default: data/derived/human_split.json)",
+    )
+
     args = parser.parse_args(argv)
-    if args.command != "verify":  # pragma: no cover - argparse rejects unknown commands
-        parser.error(f"unknown command {args.command!r}")
-
     layout = Layout(args.root.expanduser().resolve()) if args.root else Layout.from_env()
-    counts = collect_counts(layout)
 
-    if args.json:
-        print(json.dumps(counts, indent=2, sort_keys=True))
-    else:
-        _print_table(counts)
+    if args.command == "verify":
+        counts = collect_counts(layout)
+        if args.json:
+            print(json.dumps(counts, indent=2, sort_keys=True))
+        else:
+            _print_table(counts)
 
-    if args.no_check:
-        return 0
-    problems = compare(counts)
-    for problem in problems:
-        print(f"error: {problem}", file=sys.stderr)
-    return 1 if problems else 0
+        if args.no_check:
+            return 0
+        problems = compare(counts)
+        for problem in problems:
+            print(f"error: {problem}", file=sys.stderr)
+        return 1 if problems else 0
+
+    output_path = args.output or layout.derived / "human_split.json"
+    try:
+        payload = run_clustering(
+            layout.human_fasta,
+            output_path,
+            mmseqs_executable=args.mmseqs,
+            seed=args.seed,
+        )
+    except (OSError, subprocess.CalledProcessError, SplitError) as exc:
+        print(f"error: clustering failed: {exc}", file=sys.stderr)
+        return 1
+
+    split = payload["split"]
+    print(f"Wrote split assignments to {output_path}")
+    print(json.dumps(split, indent=2, sort_keys=True))
+    return 0
 
 
 if __name__ == "__main__":  # pragma: no cover
