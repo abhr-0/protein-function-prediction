@@ -1,6 +1,6 @@
 # ROADMAP.md — Milestones, Locked Decisions, Measured Facts
 
-> Durable phase-level view. Last updated: 2026-11-25.
+> Durable phase-level view. Last updated: 2026-11-27.
 > Branch: `rebuild` (orphan, fresh history). `main` is the previous attempt and
 > is reference only.
 > `PLAN.md` is an optional local (untracked) commit-level checklist; `AGENTS.md`
@@ -14,7 +14,7 @@
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
 | 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
-| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | Not started |
+| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | **In progress: clustering/split implementation added; real-data run pending** |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
 | 5 | Track B: full CAFA6, cafaeval, NK/LK/PK | Not started |
@@ -35,7 +35,7 @@
 - [x] Dev tooling: pytest 9.2.0, ruff 0.17.6.
 - [x] Environment: Python 3.12.16, uv 0.11.21, numpy 2.5.5, scipy 1.18.1,
       scikit-learn 1.9.1, pandas 3.1.1, cafaeval 1.3.0; `uv.lock` tracked.
-- [x] Counts verified: 20,429 proteins, 243,091 annotations; CAFA6 82,404
+- [x] Raw counts verified: 20,429 proteins, 243,091 annotations; CAFA6 82,404
       train proteins / 537,027 annotations / 8,023 GT.
 
 Acceptance met: `uv sync` works from a clean checkout, raw files match the
@@ -52,7 +52,7 @@ with `build: make pfpred an installable package`.
 - [x] `io.py`: gzip-aware text open, TSV rows, header validation.
 - [x] `uniprot.py`: streaming human FASTA, annotation TSV, per-aspect label loading.
 - [x] `labels.py`: `curated` evidence policy, grouping, summary statistics.
-- [x] `cafa6.py`: train terms, headerless taxonomy, ground truth, sequences.
+- [x] `cafa6.py`: CAFA6 train terms, headerless taxonomy, ground truth, sequences.
 - [x] `cli.py`: `pfpred verify` checks every documented count and exits 1 on drift.
 - [x] Tests: 81 tests on tiny fixtures; no network, no full-data reads.
 
@@ -65,16 +65,30 @@ terms; CAFA6 train 82,404 proteins / 537,027 annotations; ground truth 8,023
 
 ## Phase 2 — Splits and vocabulary
 
-- MMseqs2 `easy-cluster` at 30% identity; split clusters 80/10/10.
+### Task A — MMseqs2 clustering and protein splits
+
+- [x] `pfpred cluster` command and `src/pfpred/splits.py` implementation.
+- [x] MMseqs2 `easy-cluster`: 30% minimum identity, 80% bidirectional coverage
+      (`-c 0.80 --cov-mode 0)).
+- [x] Validate that every FASTA accession appears exactly once in cluster output.
+- [x] Deterministic largest-cluster-first assignment; keep each cluster indivisible.
+- [x] Record FASTA SHA-256, MMseqs2 version/parameters, seed, protein counts,
+      cluster counts, and per-protein assignments in JSON.
+- [x] Synthetic tests for TSV parsing, malformed/duplicate/missing members,
+      deterministic assignment, and cluster integrity.
+- [ ] Run on the supplied Human Swiss-Prot FASTA and inspect actual split counts.
+- [ ] Verify no cluster spans splits in the generated JSON.
+
+### Task B — Train-only vocabulary
+
 - Train-only vocabulary; minimum training count policy; apply to val/test.
 - Coverage report: terms kept, test annotations covered, proteins dropped with
   zero positives.
-- Tests: no cluster spans splits; vocabulary is training-only; split is
-  deterministic.
+- Tests: vocabulary is training-only; selected terms have at least one train positive.
 
-Acceptance: split JSON + vocabulary JSON + coverage report; no test protein
-contributes to the vocabulary; each selected term has at least one train
-positive.
+Acceptance for Phase 2: split JSON + vocabulary JSON + coverage report; no test
+protein contributes to the vocabulary; each selected term has at least one train
+positive. Phase 2 remains in progress until Task B is complete.
 
 ---
 
@@ -112,7 +126,7 @@ non-CAFA.
 - Tests: writer format; cafaeval wrapper on toy data.
 
 Acceptance: reproducible cafaeval run for NK/LK/PK with the frozen
-`go-basic.obo` and `IA.tsv`; outputs stored under `artifacts/runs/`; protocol
+`go-basic.obo` and `IA.tsv`, outputs stored under `artifacts/runs/`; protocol
 flags recorded.
 
 ---
@@ -138,8 +152,8 @@ flags recorded.
 | Environment | Nix flake + direnv; uv for Python dependencies |
 | Data layout | `data/raw` (read-only inputs), `data/derived` (splits/vocab/embeddings), `artifacts/runs` |
 | Track A universe | Human Swiss-Prot 2026_04, taxid 9606 |
-| Track A labels | UniProt `DR GO`, policy `curated` (no IEA/ND/NR) |
-| Track A split | MMseqs2 30% clusters, 80/10/10; no random comparison |
+| Track A labels | UniProt `DR GO`, evidence policy `curated` (no IEA/ND/NR) |
+| Track A split | MMseqs2 `easy-cluster`, 30% identity, 80% bidirectional coverage (`-c 0.80 --cov-mode 0`), target 80/10/10 by protein count with whole clusters |
 | Track A metric | Micro/macro P/R/F1; no IA/OBO in v1 |
 | Track B universe | Full CAFA6: 82,404 train, 8,023 GT, 1,381 species |
 | Track B labels | CAFA6 `train_terms.tsv` (t0) only |
@@ -175,8 +189,8 @@ flags recorded.
 
 ## Why the frozen IA/graph
 
-- `cafaeval` needs `-ia` for IA-weighted F-max; without it only unweighted F is
-  produced.
+- `cafaeval` needs `-ia` for IA-weighted F-max; without it only unweighted F
+  is produced.
 - IA is tied to a specific OBO release. The only official pair available is
   CAFA6's 2025-06 `go-basic.obo` + `IA.tsv`.
 - No official IA exists for "GO as of UniProt 2026_04".
@@ -190,13 +204,12 @@ flags recorded.
 
 ## Known limitations
 
-- Track A is a contemporary-label, clustered holdout: not temporal, not
-  CAFA-comparable.
-- Clustering at 30% still leaves sub-threshold homology; numbers remain
-  optimistic relative to a truly novel protein.
+- Track A uses contemporary labels and a clustered holdout; it is not a temporal
+  or CAFA benchmark.
+- Clustering at 30% identity and 80% bidirectional coverage still leaves
+  sub-threshold homology; numbers remain optimistic relative to a truly novel protein.
 - Track B is the CAFA-comparable number, but PK scores only post-t0 terms and
   NK/LK are smaller.
 - The frozen graph drops 0.06% of human annotations (no effect on Track A v1).
 - ESM-2 is frozen; no fine-tuning in v1.
 - Colab sessions are ephemeral; sharding is mandatory.
-- No PPI, no external knowledge, no submission format in v1.

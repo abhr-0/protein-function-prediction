@@ -22,7 +22,7 @@ The rebuild runs two experiments on one codebase:
 |---|---|---|
 | Protein universe | human Swiss-Prot, taxid 9606, 20,429 proteins | full CAFA6: 82,404 train proteins, 1,381 species |
 | Labels | UniProt `DR GO` (human REST txt, release 2026_04), evidence policy `curated` | CAFA6 `train/train_terms.tsv` (t0 snapshot) |
-| Split | MMseqs2 30% identity clusters, 80/10/10 by cluster | temporal: t0 labels → May 2026 ground truth |
+| Split | MMseqs2 30% identity + 80% bidirectional coverage, 80/10/10 by whole cluster | temporal: t0 labels → May 2026 ground truth |
 | Evaluation | micro/macro precision, recall, F1 at a validation-tuned threshold | `cafaeval` IA-weighted F-max, NK/LK/PK |
 | CAFA-comparable | no | yes (with documented caveats) |
 | Aspect model | one run per aspect, MF first | one run per aspect, MF first |
@@ -113,8 +113,7 @@ is never a Track A holdout result.
 - Track A inputs: `data/raw/uniprot/human_proteins_2026_04.fasta.gz` and
   `data/raw/uniprot/human_go_annotations_2026_04.tsv.gz`
   (`Entry`, `GO`, `Aspect`, `Evidence`).
-- Track B inputs: the full CAFA6 train/test/eval bundle under
-  `data/raw/cafa6/`.
+- Track B inputs: the full CAFA6 train/test/eval bundle under `data/raw/cafa6/`.
 - v1 does **not** need the full `uniprot_sprot.dat.gz`, the full Swiss-Prot
   FASTA, `data/go/go-basic.obo`, or a UniProt web TSV.
 
@@ -132,6 +131,7 @@ uv sync --extra embed        # torch + transformers (usually only on Colab)
 uv run pytest
 uv run ruff check .
 uv run pfpred verify         # raw files vs documented counts
+uv run pfpred cluster        # MMseqs2 clusters + Track A splits
 ```
 
 Do not add dependencies without a reason recorded in `ROADMAP.md` (and, locally,
@@ -161,7 +161,7 @@ src/pfpred/
 tests/               # tiny fixtures, no network
 notebooks/           # only notebooks/colab_embed.ipynb
 docs/                # data_sources.md, methodology.md
-data/                # gitignored: raw/ (inputs), derived/ (splits, vocab, embeddings)
+data/                # gitignored: raw/ (inputs), derived/ (splits/vocab/embeddings)
 artifacts/           # gitignored: runs/<run_id>/
 ```
 
@@ -173,8 +173,8 @@ artifacts/           # gitignored: runs/<run_id>/
   `PLAN.md`, if present locally, is the current commit-level checklist; it is
   untracked and may be stale. If they disagree, follow `ROADMAP.md` and say so.
 - Use **Conventional Commits** for every commit: `type(scope): summary`, with
-  `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `perf`, or `build` as the
-  type. Examples: `feat: data adapters`, `fix: key annotations on primary
+  `feat`, `fix`, `docs`, `chore`, `test`, `refactor`, `perf`, or `build`
+  as the type. Examples: `feat: data adapters`, `fix: key annotations on primary
   accession`. Do not use free-form commit messages.
 - Work in small commits that match the current plan (`PLAN.md` if present
   locally). Meet a phase's acceptance criteria before starting the next.
