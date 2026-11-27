@@ -197,8 +197,9 @@ artifacts/           # gitignored: runs/<run_id>/
 
 Phase 1 is complete: the `pfpred` package ships adapters for the human UniProt
 files and the CAFA6 bundle, the `curated` evidence policy, and `pfpred verify`,
-which checks every documented count and exits non-zero on drift. Phase 2 (splits
-and vocabulary) is next.
+which checks every documented count and exits non-zero on drift. Phase 2 is in
+progress: Task A clustering/split code is implemented, with its real-data run
+pending; Task B (train-only vocabulary) remains.
 
 ---
 
