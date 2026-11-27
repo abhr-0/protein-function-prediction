@@ -12,6 +12,7 @@ from pathlib import Path
 from pfpred import cafa6
 from pfpred.labels import CURATED, filter_annotations, summarize
 from pfpred.paths import Layout
+from pfpred.records import DataFormatError
 from pfpred.splits import SplitError, run_clustering
 from pfpred.uniprot import read_annotations, read_fasta
 
@@ -167,7 +168,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"error: {problem}", file=sys.stderr)
         return 1 if problems else 0
 
-    output_path = args.output or layout.derived / "human_split.json"
+    output_path = args.output.expanduser().resolve() if args.output else layout.human_split
     try:
         payload = run_clustering(
             layout.human_fasta,
@@ -175,7 +176,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             mmseqs_executable=args.mmseqs,
             seed=args.seed,
         )
-    except (OSError, subprocess.CalledProcessError, SplitError) as exc:
+    except (OSError, subprocess.CalledProcessError, DataFormatError, SplitError) as exc:
         print(f"error: clustering failed: {exc}", file=sys.stderr)
         return 1
 
