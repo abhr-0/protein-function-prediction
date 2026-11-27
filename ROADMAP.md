@@ -14,7 +14,7 @@
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
 | 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
-| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | **In progress: clustering/split implementation added; real-data run pending** |
+| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | **In progress: Task A complete (2026-11-27); Task B vocabulary remains** |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
 | 5 | Track B: full CAFA6, cafaeval, NK/LK/PK | Not started |
@@ -76,8 +76,10 @@ terms; CAFA6 train 82,404 proteins / 537,027 annotations; ground truth 8,023
       cluster counts, and per-protein assignments in JSON.
 - [x] Synthetic tests for TSV parsing, malformed/duplicate/missing members,
       deterministic assignment, and cluster integrity.
-- [ ] Run on the supplied Human Swiss-Prot FASTA and inspect actual split counts.
-- [ ] Verify no cluster spans splits in the generated JSON.
+- [x] Run on the supplied Human Swiss-Prot FASTA; generated `data/derived/human_split.json`.
+- [x] Inspect actual split counts: 20,429 proteins across 13,070 clusters; train 16,343 proteins / 10,461 clusters, validation 2,043 / 1,304, test 2,043 / 1,305.
+- [x] Independently verify JSON integrity: metadata counts match assignments, all split labels are valid, and zero clusters span multiple splits.
+- [x] Runtime validation on Windows: `pfpred verify`, `pytest`, and `ruff check .` all pass.
 
 ### Task B — Train-only vocabulary
 
@@ -184,6 +186,8 @@ flags recorded.
 | Human terms absent from frozen graph | 72 terms; 141 annotations (0.06%) | OBO vs annotations |
 | Raw data on disk (gitignored) | 7.4 MiB UniProt + 295 MiB CAFA6 | `du -sh` |
 | Verification | `uv run pfpred verify` checks 25 counts in ~5 s | exit 0 |
+| Track A clustered split | 20,429 proteins in 13,070 clusters; train 16,343 / 10,461 clusters, validation 2,043 / 1,304, test 2,043 / 1,305 | `human_split.json`, seed 42 |
+| Split integrity | 0 cross-split clusters; assignment and metadata counts match | Independent JSON integrity check |
 
 ---
 
