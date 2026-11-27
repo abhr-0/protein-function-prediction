@@ -8,7 +8,6 @@ import pytest
 
 from pfpred.splits import (
     SplitError,
-    _is_windows_batch,
     _repair_and_check_leakage,
     _run_mmseqs,
     assign_cluster_splits,
