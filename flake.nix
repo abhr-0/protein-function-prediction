@@ -18,12 +18,29 @@
 
       perSystem =
         { pkgs, lib, ... }:
+        let
+          # nixpkgs only pulls in zlib/bzip2 for the Clang build. The pipeline
+          # feeds MMseqs2 an uncompressed FASTA (run_clustering normalizes it
+          # first), so this override is for parity with the Clang build and
+          # ad-hoc use on compressed inputs, not a pipeline requirement.
+          mmseqs2 = pkgs.mmseqs2.overrideAttrs (old: {
+            buildInputs = (old.buildInputs or [ ]) ++ [
+              pkgs.zlib
+              pkgs.bzip2
+            ];
+            # Without a git checkout, MMseqs2 records "GITDIR-NOTFOUND" as its
+            # version, which ends up in the split provenance JSON.
+            cmakeFlags = (old.cmakeFlags or [ ]) ++ [
+              (lib.cmakeFeature "VERSION_OVERRIDE" old.version)
+            ];
+          });
+        in
         {
           devShells.default = pkgs.mkShell {
             packages = [
               pkgs.python312
               pkgs.uv
-              pkgs.mmseqs2
+              mmseqs2
             ];
 
             env = lib.optionalAttrs pkgs.stdenv.isLinux {
