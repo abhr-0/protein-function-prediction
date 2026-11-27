@@ -76,7 +76,9 @@ def read_cluster_tsv(
         raise SplitError(f"{path}: MMseqs2 produced an empty cluster file")
     for representative, members in clusters.items():
         if representative not in members:
-            raise SplitError(f"{path}: representative {representative!r} is absent from its cluster")
+            raise SplitError(
+                f"{path}: representative {representative!r} is absent from its cluster"
+            )
     missing = expected_accessions - seen
     if missing:
         raise SplitError(
@@ -195,10 +197,15 @@ def _repair_and_check_leakage(
                 raise SplitError(f"leakage repair emptied the {split_name} split")
             query_path = work_dir / f"{split_name}.fasta"
             _write_fasta(query_path, query_accessions, sequences)
-            hits = _search_hits(executable, query_path, train_path, work_dir, f"{split_name}_{rounds}")
+            hits = _search_hits(
+                executable, query_path, train_path, work_dir, f"{split_name}_{rounds}"
+            )
             unknown = hits - set(query_accessions)
             if unknown:
-                raise SplitError(f"MMseqs2 leakage search returned unknown query IDs: {sorted(unknown)[:5]}")
+                raise SplitError(
+                    "MMseqs2 leakage search returned unknown query IDs: "
+                    f"{sorted(unknown)[:5]}"
+                )
             round_hits += len(hits)
             representative_by_member = {
                 member: representative
