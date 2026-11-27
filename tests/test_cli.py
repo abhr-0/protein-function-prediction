@@ -124,7 +124,6 @@ def test_cluster_command_invokes_clustering(
 def test_cluster_command_reports_malformed_fasta_without_traceback(
     mini_layout: Path, capsys,
 ) -> None:
-    from pfpred import cli
     from pfpred.paths import Layout
 
     layout = Layout(mini_layout)
