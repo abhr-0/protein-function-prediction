@@ -263,6 +263,8 @@ def validate_split_payload(payload: Mapping[str, object]) -> None:
         protein_counts[label] += 1
     for cluster, label in cluster_labels.items():
         cluster_counts[label] += 1
+    if any(protein_counts[name] == 0 for name in SPLIT_NAMES):
+        raise SplitError("split payload contains an empty split")
     if sum(protein_counts.values()) != split.get("total_proteins"):
         raise SplitError("total_proteins does not match assignments")
     if len(cluster_labels) != split.get("total_clusters"):
