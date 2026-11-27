@@ -189,9 +189,10 @@ def test_leakage_repair_moves_entire_offending_cluster_to_train(
     clusters = {
         "P1": ("P1",),
         "P2": ("P2", "P2b"),
+        "P2c": ("P2c",),
         "P3": ("P3",),
     }
-    assignments = {"P1": "train", "P2": "validation", "P3": "test"}
+    assignments = {"P1": "train", "P2": "validation", "P2c": "validation", "P3": "test"}
     sequences = {name: "ACDE" for members in clusters.values() for name in members}
     calls = 0
 
@@ -207,7 +208,7 @@ def test_leakage_repair_moves_entire_offending_cluster_to_train(
         "mmseqs", clusters, assignments, sequences, tmp_path,
     )
 
-    assert assignments == {"P1": "train", "P2": "train", "P3": "test"}
+    assert assignments == {"P1": "train", "P2": "train", "P2c": "validation", "P3": "test"}
     assert result["hits"] == 0
     assert result["moved_clusters_to_train"] == 1
     assert result["moved_proteins_to_train"] == 2
