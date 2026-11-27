@@ -14,7 +14,7 @@
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
 | 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
-| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | **In progress: Task A complete (2026-11-27); Task B vocabulary remains** |
+| 2 | Splits and vocabulary: MMseqs2 clusters, train-only vocab | **In progress: Task A revalidation; Task B vocabulary remains** |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
 | 5 | Track B: full CAFA6, cafaeval, NK/LK/PK | Not started |
@@ -68,18 +68,18 @@ terms; CAFA6 train 82,404 proteins / 537,027 annotations; ground truth 8,023
 ### Task A — MMseqs2 clustering and protein splits
 
 - [x] `pfpred cluster` command and `src/pfpred/splits.py` implementation.
-- [x] MMseqs2 `easy-cluster`: 30% minimum identity, 80% bidirectional coverage
-      (`-c 0.80 --cov-mode 0)).
+- [x] MMseqs2 `easy-cluster`: 30% minimum identity, 80% bidirectional coverage;
+      clustering semantics are explicit and recorded.
 - [x] Validate that every FASTA accession appears exactly once in cluster output.
-- [x] Deterministic largest-cluster-first assignment; keep each cluster indivisible.
+- [x] Deterministic, insertion-order-independent largest-cluster-first assignment; keep each cluster indivisible.
 - [x] Record FASTA SHA-256, MMseqs2 version/parameters, seed, protein counts,
       cluster counts, and per-protein assignments in JSON.
 - [x] Synthetic tests for TSV parsing, malformed/duplicate/missing members,
       deterministic assignment, and cluster integrity.
-- [x] Run on the supplied Human Swiss-Prot FASTA; generated `data/derived/human_split.json`.
-- [x] Inspect actual split counts: 20,429 proteins across 13,070 clusters; train 16,343 proteins / 10,461 clusters, validation 2,043 / 1,304, test 2,043 / 1,305.
-- [x] Independently verify JSON integrity: metadata counts match assignments, all split labels are valid, and zero clusters span multiple splits.
-- [x] Runtime validation on Windows: `pfpred verify`, `pytest`, and `ruff check .` all pass.
+- [ ] Re-run clustering with explicit MMseqs2 semantics and iterative validation/test-versus-train homology repair.
+- [ ] Confirm `leak_check.hits == 0`; record final measured protein/cluster counts and ratios from the regenerated JSON.
+- [ ] Verify JSON integrity, no cross-split clusters, and no empty splits.
+- [ ] Runtime validation on Windows: `pfpred verify`, `pytest`, and `ruff check .`.
 
 ### Task B — Train-only vocabulary
 
@@ -186,8 +186,8 @@ flags recorded.
 | Human terms absent from frozen graph | 72 terms; 141 annotations (0.06%) | OBO vs annotations |
 | Raw data on disk (gitignored) | 7.4 MiB UniProt + 295 MiB CAFA6 | `du -sh` |
 | Verification | `uv run pfpred verify` checks 25 counts in ~5 s | exit 0 |
-| Track A clustered split | 20,429 proteins in 13,070 clusters; train 16,343 / 10,461 clusters, validation 2,043 / 1,304, test 2,043 / 1,305 | `human_split.json`, seed 42 |
-| Split integrity | 0 cross-split clusters; assignment and metadata counts match | Independent JSON integrity check |
+| Track A clustered split | Pending rerun after leakage repair changes | Regenerate `human_split.json` on local data |
+| Split integrity | Must show zero cross-split clusters and zero above-threshold train hits | Split JSON validator and MMseqs2 easy-search leakage check |
 
 ---
 
@@ -210,8 +210,10 @@ flags recorded.
 
 - Track A uses contemporary labels and a clustered holdout; it is not a temporal
   or CAFA benchmark.
-- Clustering at 30% identity and 80% bidirectional coverage still leaves
-  sub-threshold homology; numbers remain optimistic relative to a truly novel protein.
+- Clustering membership alone does not prove pairwise separation: qualifying homologous
+  pairs can remain in different clusters. The benchmark therefore performs an
+  independent validation/test-versus-train search and moves offending whole clusters
+  into train; final split ratios may differ from 80/10/10.
 - Track B is the CAFA-comparable number, but PK scores only post-t0 terms and
   NK/LK are smaller.
 - The frozen graph drops 0.06% of human annotations (no effect on Track A v1).
