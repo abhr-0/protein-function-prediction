@@ -150,3 +150,8 @@ def test_vocab_command_reports_build_error_without_traceback(
     captured = capsys.readouterr()
     assert "vocabulary build failed: fixture vocabulary failure" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_vocab_cli_rejects_conflicting_fasta_options() -> None:
+    with pytest.raises(SystemExit):
+        main(["vocab", "--fasta", "source.fasta.gz", "--skip-fasta-check"])
