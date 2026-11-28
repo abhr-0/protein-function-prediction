@@ -21,7 +21,7 @@ def test_vocabulary_uses_distinct_training_proteins_and_separates_aspects() -> N
     ]
     assignments = {
         "T1": "train", "T2": "train", "T3": "train", "T4": "train",
-        "T5": "train", "V1": "validation",
+        "T5": "train", "T6": "train", "V1": "validation",
     }
 
     vocabularies, coverage = build_vocabulary(annotations, assignments, min_count=5)
@@ -33,6 +33,8 @@ def test_vocabulary_uses_distinct_training_proteins_and_separates_aspects() -> N
     assert coverage["F"]["splits"]["validation"]["annotation_pairs_covered"] == 1
     assert coverage["F"]["splits"]["validation"]["proteins_dropped_zero_positives"] == 0
     assert coverage["F"]["splits"]["train"]["annotation_pairs"] == 7
+    assert coverage["F"]["splits"]["train"]["proteins_in_split"] == 6
+    assert coverage["F"]["splits"]["train"]["proteins_dropped_zero_positives"] == 1
 
 
 def test_holdout_annotations_cannot_change_vocabulary() -> None:
