@@ -75,6 +75,14 @@ class Layout:
         return self.derived / "human_split.json"
 
     @property
+    def human_vocabulary(self) -> Path:
+        return self.derived / "human_vocabulary.json"
+
+    @property
+    def human_coverage(self) -> Path:
+        return self.derived / "human_coverage.json"
+
+    @property
     def cafa6_dir(self) -> Path:
         return self.raw / "cafa6"
 
