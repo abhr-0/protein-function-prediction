@@ -113,7 +113,7 @@ schema 3, 1,504,137 bytes, SHA-256
 - [x] Verify split FASTA digest and preserve split/MMseqs provenance in vocabulary JSON.
 - [x] Regression tests prove holdout labels cannot enter vocabulary selection.
 - [x] Artifact, CLI error, aspect validation, and output-path collision tests.
-- [ ] Re-run `pytest` and `ruff check .` after the review revisions.
+- [ ] Re-run `pytest` and `ruff check .` after the Round 2 revisions.
 
 **Measured vocabulary (min_count = 5).** 5,543 terms retained: MF 1,214;
 BP 3,519; CC 810. Annotation-pair coverage — MF: train 86.51%, validation
@@ -199,7 +199,7 @@ flags recorded.
 | Track B metric | `cafaeval` IA F-max; NK/LK/PK; PK `-known` |
 | GO graph/IA | CAFA6 frozen `go-basic.obo` + `IA.tsv` (Track B) |
 | Propagation | Raw training labels; evaluate with `-prop fill` |
-| Track A vocabulary | Per-aspect; curated evidence; minimum 5 distinct training proteins per term; no ancestor propagation |
+| Track A vocabulary | Per-aspect; curated; >=5 distinct training proteins per term; no propagation |
 | Aspects | Per-aspect runs; MF first |
 | Features | ESM-2 650M frozen, mean-pool, truncate 1024 |
 | Models | Logistic regression + cosine kNN; MLP next |
