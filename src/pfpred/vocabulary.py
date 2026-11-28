@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import tempfile
 from collections import Counter
@@ -52,7 +51,7 @@ def build_vocabulary(
     Counts are distinct protein-term pairs. Validation and test labels are
     inspected only after the vocabulary is fixed and cannot affect selection.
     """
-    if isinstance(min_count, bool) or min_count < 1:
+    if not isinstance(min_count, int) or isinstance(min_count, bool) or min_count < 1:
         raise VocabularyError("min_count must be an integer >= 1")
     invalid = set(assignments.values()) - set(SPLIT_NAMES)
     if invalid:
