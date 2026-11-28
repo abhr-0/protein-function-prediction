@@ -9,7 +9,7 @@ from collections import Counter
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-from pfpred.labels import CURATED, filter_annotations, group_by_aspect
+from pfpred.labels import CURATED, filter_annotations
 from pfpred.paths import sha256_file
 from pfpred.records import Annotation, VALID_ASPECTS
 from pfpred.splits import SPLIT_NAMES, load_split
@@ -58,11 +58,17 @@ def build_vocabulary(
     if invalid:
         raise VocabularyError(f"unknown split names in assignments: {sorted(invalid)}")
 
-    grouped = group_by_aspect(filter_annotations(annotations, CURATED))
+    grouped: dict[str, dict[str, set[str]]] = {aspect: {} for aspect in VALID_ASPECTS}
+    unassigned_proteins: set[str] = set()
+    for row in filter_annotations(annotations, CURATED):
+        if row.entry not in assignments:
+            unassigned_proteins.add(row.entry)
+            continue
+        grouped[row.aspect].setdefault(row.entry, set()).add(row.term)
     vocabularies: dict[str, dict[str, int]] = {}
     coverage: dict[str, dict[str, object]] = {}
     for aspect in sorted(VALID_ASPECTS):
-        protein_terms = grouped.get(aspect, {})
+        protein_terms = grouped[aspect]
         split_proteins = {
             name: {
                 protein: terms for protein, terms in protein_terms.items()
@@ -111,6 +117,7 @@ def build_vocabulary(
             ),
             "splits": split_report,
         }
+    coverage["_unassigned_curated_annotation_proteins"] = len(unassigned_proteins)
     return vocabularies, coverage
 
 
@@ -135,16 +142,11 @@ def build_vocabulary_files(
             raise VocabularyError(f"malformed split assignment for {accession!r}")
         assignments[accession] = item["split"]
 
-    annotation_rows = list(read_annotations(annotation_path))
     vocabularies, coverage = build_vocabulary(
-        annotation_rows, assignments, min_count=min_count
+        read_annotations(annotation_path), assignments, min_count=min_count
     )
     split_digest = sha256_file(split_path)
     annotation_digest = sha256_file(annotation_path)
-    unassigned = sorted(
-        {row.entry for row in filter_annotations(annotation_rows, CURATED)}
-        - assignments.keys()
-    )
     vocab_payload: dict[str, object] = {
         "schema_version": VOCABULARY_SCHEMA_VERSION,
         "track": "A",
@@ -180,7 +182,9 @@ def build_vocabulary_files(
         "min_count": min_count,
         "split_sha256": split_digest,
         "annotations_sha256": annotation_digest,
-        "unassigned_curated_annotation_proteins": len(unassigned),
+        "unassigned_curated_annotation_proteins": coverage.pop(
+            "_unassigned_curated_annotation_proteins"
+        ),
         "aspects": coverage,
     }
     _write_json(vocabulary_path, vocab_payload)
