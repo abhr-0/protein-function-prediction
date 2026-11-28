@@ -147,13 +147,16 @@ def build_vocabulary_files(
     coverage_path: Path,
     *,
     fasta_path: Path | None = None,
+    verify_fasta: bool = True,
     min_count: int = DEFAULT_MIN_COUNT,
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Read Track A inputs, fit vocabulary, and write provenance + coverage JSON."""
     _validate_distinct_paths(
         annotation_path, split_path, vocabulary_path, coverage_path, fasta_path
     )
-    split_payload = load_split(split_path, fasta_path=fasta_path)
+    split_payload = load_split(
+        split_path, fasta_path=fasta_path if verify_fasta else None
+    )
     if split_payload.get("track") != "A":
         raise VocabularyError(
             f"vocabulary requires a Track A split artifact, got {split_payload.get('track')!r}"
