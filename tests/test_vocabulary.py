@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from pathlib import Path
 
-import pfpred.vocabulary as vocabulary_module
-
 import pytest
+
+import pfpred.vocabulary as vocabulary_module
 
 from pfpred.records import Annotation
 from pfpred.vocabulary import (
