@@ -263,6 +263,35 @@ def test_vocab_cli_passes_layout_fasta_to_builder(
     assert "Wrote vocabulary" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("skip_check", [False, True])
+def test_vocab_cli_supports_custom_fasta_or_explicit_skip(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    skip_check: bool,
+) -> None:
+    from pfpred import cli
+
+    custom_fasta = tmp_path / "alternate.fasta.gz"
+    captured: dict[str, object] = {}
+
+    def fake_builder(*_args, fasta_path: Path | None, **_kwargs):
+        captured["fasta"] = fasta_path
+        return (
+            {"aspects": {aspect: {"term_count": 1} for aspect in ("F", "P", "C")}},
+            {"aspects": {}},
+        )
+
+    monkeypatch.setattr(cli, "build_vocabulary_files", fake_builder)
+    args = ["vocab", "--root", str(tmp_path)]
+    if skip_check:
+        args.append("--skip-fasta-check")
+    else:
+        args.extend(["--fasta", str(custom_fasta)])
+
+    assert cli.main(args) == 0
+    assert captured["fasta"] is (None if skip_check else custom_fasta.resolve())
+
+
 def test_numpy_integer_min_count_is_supported() -> None:
     import numpy as np
 
