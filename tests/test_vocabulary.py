@@ -183,7 +183,12 @@ def test_build_vocabulary_files_writes_outputs_and_provenance(
         for aspect, term in (("F", "GO:F"), ("P", "GO:P"), ("C", "GO:C"))
         for i in range(5)
     ]
-    monkeypatch.setattr(vocabulary_module, "load_split", lambda *_args, **_kwargs: split_payload)
+    def fake_load_split(_path: Path, *, fasta_path: Path | None = None) -> dict[str, object]:
+        assert fasta_path == fasta_path_fixture
+        return split_payload
+
+    fasta_path_fixture = fasta_path
+    monkeypatch.setattr(vocabulary_module, "load_split", fake_load_split)
     monkeypatch.setattr(vocabulary_module, "read_annotations", lambda _path: iter(rows))
     monkeypatch.setattr(vocabulary_module, "sha256_file", lambda _path: "b" * 64)
 
@@ -194,7 +199,7 @@ def test_build_vocabulary_files_writes_outputs_and_provenance(
 
     assert set(vocab_payload["aspects"]) == {"F", "P", "C"}
     assert vocab_payload["provenance"]["input_fasta_sha256"] == "a" * 64
-    assert coverage_payload["unassigned_curated_annotation_proteins"] == 0
+    assert coverage_payload["schema_version"] == 2
     assert vocabulary_path.exists() and coverage_path.exists()
 
 
@@ -240,7 +245,7 @@ def test_vocab_cli_passes_layout_fasta_to_builder(
         vocabulary_path: Path,
         coverage_path: Path,
         *,
-        fasta_path: Path,
+        fasta_path: Path | None,
         min_count: int,
     ) -> tuple[dict[str, object], dict[str, object]]:
         captured.update({
