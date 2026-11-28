@@ -29,7 +29,7 @@ def build_vocabulary(
     assignments: Mapping[str, str],
     *,
     min_count: int = DEFAULT_MIN_COUNT,
-) -> tuple[dict[str, dict[str, int]], dict[str, dict[str, object]], int]:
+) -> tuple[dict[str, dict[str, int]], dict[str, dict[str, object]]]:
     """Fit per-aspect vocabularies on train proteins and report split coverage.
 
     Counts are distinct protein-term pairs. Validation and test labels are
@@ -113,7 +113,7 @@ def build_vocabulary(
             ),
             "splits": split_report,
         }
-    return vocabularies, coverage, len(unassigned)
+    return vocabularies, coverage
 
 
 def _validate_distinct_paths(
@@ -164,7 +164,7 @@ def build_vocabulary_files(
         for accession, item in assignments_raw.items()
     }
 
-    vocabularies, coverage, unassigned_count = build_vocabulary(
+    vocabularies, coverage = build_vocabulary(
         read_annotations(annotation_path), assignments, min_count=min_count
     )
     empty_aspects = [
@@ -215,7 +215,6 @@ def build_vocabulary_files(
         "min_count": int(min_count),
         "split_sha256": split_digest,
         "annotations_sha256": annotation_digest,
-        "unassigned_curated_annotation_proteins": unassigned_count,
         "aspects": coverage,
     }
     write_json_atomic(vocabulary_path, vocab_payload)
