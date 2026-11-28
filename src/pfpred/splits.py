@@ -10,11 +10,11 @@ import platform
 import shutil
 import subprocess
 import sys
-import tempfile
 from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 
+from pfpred.io import write_json_atomic
 from pfpred.paths import sha256_file
 from pfpred.uniprot import read_fasta
 
@@ -602,22 +602,7 @@ def load_split(path: Path, *, fasta_path: Path | None = None) -> dict[str, objec
     return payload
 
 
-def _write_json(path: Path, payload: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=path.parent,
-            prefix=f".{path.name}.", suffix=".tmp", delete=False,
-        ) as handle:
-            temporary = Path(handle.name)
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        temporary.replace(path)
-    finally:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
-
+_write_json = write_json_atomic
 
 def run_clustering(
     fasta_path: Path,
