@@ -69,7 +69,7 @@ def test_frequency_boundary_and_duplicate_rows_are_exact() -> None:
     annotations.extend(row(f"T{i}", "GO:dropped") for i in range(4))
     assignments = {f"T{i}": "train" for i in range(5)}
 
-    vocabularies, _, _ = build_vocabulary(annotations, assignments, min_count=5)
+    vocabularies, _ = build_vocabulary(annotations, assignments, min_count=5)
     assert vocabularies["F"] == {"GO:kept": 5}
 
 
@@ -85,7 +85,7 @@ def test_selected_terms_have_a_training_positive() -> None:
 def test_curated_policy_is_applied_before_counting() -> None:
     annotations = [row(f"T{i}", "GO:1") for i in range(1, 5)]
     annotations.append(row("T5", "GO:1", evidence="IEA"))
-    vocabularies, _, _ = build_vocabulary(
+    vocabularies, _ = build_vocabulary(
         annotations, {f"T{i}": "train" for i in range(1, 6)}, min_count=5
     )
     assert "GO:1" not in vocabularies["F"]
@@ -323,7 +323,7 @@ def test_numpy_integer_min_count_is_supported() -> None:
     import numpy as np
 
     annotations = [row(f"T{i}", "GO:1") for i in range(5)]
-    vocabularies, _, _ = build_vocabulary(
+    vocabularies, _ = build_vocabulary(
         annotations, {f"T{i}": "train" for i in range(5)}, min_count=np.int64(5)
     )
     assert vocabularies["F"] == {"GO:1": 5}
