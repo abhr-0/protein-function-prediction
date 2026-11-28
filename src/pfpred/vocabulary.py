@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pfpred.labels import CURATED, filter_annotations
 from pfpred.paths import sha256_file
-from pfpred.records import Annotation, VALID_ASPECTS
+from pfpred.records import VALID_ASPECTS, Annotation
 from pfpred.splits import SPLIT_NAMES, load_split
 from pfpred.uniprot import read_annotations
 
