@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -363,7 +364,15 @@ def test_validate_summary_rejects_more_hits_than_split_proteins() -> None:
             validate_split_payload(payload)
 
 
-def test_canonical_executable_resolves_symlinks_and_falls_back(
+def test_canonical_executable_path_miss_falls_back(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
+    assert _canonical_executable("mmseqs") == "mmseqs"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="symlink creation may require Windows privileges")
+def test_canonical_executable_resolves_symlink(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     target = tmp_path / "store" / "mmseqs"
@@ -371,19 +380,9 @@ def test_canonical_executable_resolves_symlinks_and_falls_back(
     target.write_text("", encoding="utf-8")
     link = tmp_path / "profile" / "bin" / "mmseqs"
     link.parent.mkdir(parents=True)
-    try:
-        link.symlink_to(target)
-    except OSError:
-        # Windows may deny symlink creation unless Developer Mode or elevated
-        # privileges are enabled. The PATH-miss fallback remains testable.
-        monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
-        assert _canonical_executable("mmseqs") == "mmseqs"
-        return
-
+    link.symlink_to(target)
     monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: str(link))
     assert _canonical_executable("mmseqs") == str(target.resolve())
-    monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
-    assert _canonical_executable("mmseqs") == "mmseqs"
 
 
 def test_validate_split_payload_requires_digest_platform_and_executable() -> None:
