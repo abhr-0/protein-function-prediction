@@ -16,7 +16,7 @@ from pfpred.uniprot import read_annotations
 
 DEFAULT_MIN_COUNT = 5
 VOCABULARY_SCHEMA_VERSION = 1
-COVERAGE_SCHEMA_VERSION = 1
+COVERAGE_SCHEMA_VERSION = 2
 ASPECT_NAMES = {"F": "MF", "P": "BP", "C": "CC"}
 
 
