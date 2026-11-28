@@ -44,7 +44,7 @@ def test_vocabulary_uses_distinct_training_proteins_and_separates_aspects() -> N
     assert coverage["F"]["terms_kept"] == 1
     assert coverage["F"]["splits"]["validation"]["annotation_pairs_covered"] == 1
     assert coverage["F"]["splits"]["validation"]["proteins_dropped_by_min_count"] == 0
-    assert coverage["F"]["splits"]["train"]["annotation_pairs"] == 7
+    assert coverage["F"]["splits"]["train"]["annotation_pairs"] == 8
     assert coverage["F"]["splits"]["train"]["proteins_in_split"] == 7
     assert coverage["F"]["splits"]["train"]["proteins_without_aspect_label"] == 1
     assert coverage["F"]["splits"]["train"]["proteins_dropped_by_min_count"] == 1
@@ -84,7 +84,7 @@ def test_selected_terms_have_a_training_positive() -> None:
 
 
 def test_curated_policy_is_applied_before_counting() -> None:
-    annotations = [row(f"T{i}", "GO:1") for i in range(4)]
+    annotations = [row(f"T{i}", "GO:1") for i in range(1, 5)]
     annotations.append(row("T5", "GO:1", evidence="IEA"))
     vocabularies, _, _ = build_vocabulary(
         annotations, {f"T{i}": "train" for i in range(1, 6)}, min_count=5
