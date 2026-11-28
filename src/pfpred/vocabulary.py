@@ -92,14 +92,16 @@ def build_vocabulary(
             covered_pairs = sum(
                 len(terms.intersection(selected)) for terms in rows.values()
             )
+            proteins_in_split = sum(label == split_name for label in assignments.values())
             proteins_with_labels = len(rows)
             proteins_with_positives = sum(
                 bool(terms.intersection(selected)) for terms in rows.values()
             )
             split_report[split_name] = {
+                "proteins_in_split": proteins_in_split,
                 "proteins_with_curated_annotations": proteins_with_labels,
                 "proteins_with_positives": proteins_with_positives,
-                "proteins_dropped_zero_positives": proteins_with_labels - proteins_with_positives,
+                "proteins_dropped_zero_positives": proteins_in_split - proteins_with_positives,
                 "annotation_pairs": total_pairs,
                 "annotation_pairs_covered": covered_pairs,
                 "annotation_pair_coverage": (
