@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from pfpred.records import Annotation
 import pfpred.vocabulary as vocabulary_module
+from pfpred.records import Annotation
 from pfpred.vocabulary import (
     VocabularyError,
     _validate_distinct_paths,
