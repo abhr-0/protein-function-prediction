@@ -188,6 +188,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             vocab_payload, coverage_payload = build_vocabulary_files(
                 annotation_path, split_path, vocabulary_path, coverage_path,
+                fasta_path=layout.human_fasta,
                 min_count=args.min_count,
             )
         except (OSError, DataFormatError, SplitError, VocabularyError) as exc:
