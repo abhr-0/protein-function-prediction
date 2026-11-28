@@ -105,7 +105,10 @@ def test_min_count_must_be_positive_integer(min_count: int) -> None:
 
 
 @pytest.mark.parametrize(
-    "collision", ["annotation_split", "annotation_output", "split_coverage", "output_coverage"]
+    "collision", [
+        "annotations_split", "annotations_vocabulary", "annotations_coverage",
+        "split_vocabulary", "split_coverage", "vocabulary_coverage",
+    ]
 )
 def test_all_input_and_output_path_collisions_are_rejected(
     tmp_path: Path, collision: str,
@@ -116,7 +119,7 @@ def test_all_input_and_output_path_collisions_are_rejected(
         "vocabulary": tmp_path / "vocab.json",
         "coverage": tmp_path / "coverage.json",
     }
-    first, second = collision.split("_")
+    first, second = collision.split("_", maxsplit=1)
     paths[second] = paths[first]
     with pytest.raises(VocabularyError, match="path collision"):
         _validate_distinct_paths(
