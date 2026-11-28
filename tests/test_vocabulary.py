@@ -47,6 +47,7 @@ def test_vocabulary_uses_distinct_training_proteins_and_separates_aspects() -> N
     assert coverage["F"]["splits"]["train"]["proteins_in_split"] == 7
     assert coverage["F"]["splits"]["train"]["proteins_without_aspect_label"] == 1
     assert coverage["F"]["splits"]["train"]["proteins_dropped_by_min_count"] == 1
+    assert coverage["C"]["splits"]["train"]["annotation_pair_coverage"] == 0.0
 
 
 def test_holdout_annotations_cannot_enter_vocabulary() -> None:
@@ -198,9 +199,31 @@ def test_build_vocabulary_files_writes_outputs_and_provenance(
     )
 
     assert set(vocab_payload["aspects"]) == {"F", "P", "C"}
+    assert {key: item["name"] for key, item in vocab_payload["aspects"].items()} == {
+        "F": "MF", "P": "BP", "C": "CC",
+    }
     assert vocab_payload["provenance"]["input_fasta_sha256"] == "a" * 64
     assert coverage_payload["schema_version"] == 2
     assert vocabulary_path.exists() and coverage_path.exists()
+
+
+def test_build_vocabulary_files_rejects_non_track_a_split(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    paths = [tmp_path / name for name in (
+        "annotations.tsv.gz", "split.json", "fasta.gz", "vocabulary.json", "coverage.json",
+    )]
+    for path in paths:
+        path.write_bytes(b"fixture")
+    monkeypatch.setattr(
+        vocabulary_module, "load_split",
+        lambda *_args, **_kwargs: {"track": "B", "assignments": {}},
+    )
+
+    with pytest.raises(VocabularyError, match="requires a Track A split"):
+        build_vocabulary_files(
+            paths[0], paths[1], paths[3], paths[4], fasta_path=paths[2],
+        )
 
 
 def test_build_vocabulary_files_rejects_empty_aspect(
