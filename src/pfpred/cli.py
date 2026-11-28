@@ -197,12 +197,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         fasta_path = (
             args.fasta.expanduser().resolve() if args.fasta else layout.human_fasta
         )
-        if args.skip_fasta_check:
-            fasta_path = None
         try:
             vocab_payload, coverage_payload = build_vocabulary_files(
                 annotation_path, split_path, vocabulary_path, coverage_path,
                 fasta_path=fasta_path,
+                verify_fasta=not args.skip_fasta_check,
                 min_count=args.min_count,
             )
         except (OSError, DataFormatError, SplitError, VocabularyError) as exc:
