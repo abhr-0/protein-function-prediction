@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from pathlib import Path
 
+import pfpred.vocabulary as vocabulary_module
+
 import pytest
 
 from pfpred.records import Annotation
@@ -10,6 +12,7 @@ from pfpred.vocabulary import (
     VocabularyError,
     _validate_distinct_paths,
     build_vocabulary,
+    build_vocabulary_files,
 )
 
 
@@ -108,3 +111,75 @@ def test_path_collisions_are_rejected(tmp_path: Path) -> None:
     output = tmp_path / "vocab.json"
     with pytest.raises(VocabularyError, match="path collision"):
         _validate_distinct_paths(annotations, split, output, output)
+
+
+
+def test_build_vocabulary_files_writes_outputs_and_provenance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    annotations_path = tmp_path / "annotations.tsv.gz"
+    split_path = tmp_path / "human_split.json"
+    fasta_path = tmp_path / "human.fasta.gz"
+    vocabulary_path = tmp_path / "human_vocabulary.json"
+    coverage_path = tmp_path / "human_coverage.json"
+    for path in (annotations_path, split_path, fasta_path):
+        path.write_bytes(b"fixture")
+
+    assignments = {f"P{i}": "train" for i in range(5)}
+    split_payload = {
+        "track": "A",
+        "dataset": "fixture",
+        "input_fasta": fasta_path.name,
+        "input_sha256": "a" * 64,
+        "platform": {"system": "linux"},
+        "mmseqs": {"version": "fixture"},
+        "assignments": {
+            protein: {"split": split} for protein, split in assignments.items()
+        },
+    }
+    rows = [
+        row(f"P{i}", term, aspect)
+        for aspect, term in (("F", "GO:F"), ("P", "GO:P"), ("C", "GO:C"))
+        for i in range(5)
+    ]
+    monkeypatch.setattr(vocabulary_module, "load_split", lambda *_args, **_kwargs: split_payload)
+    monkeypatch.setattr(vocabulary_module, "read_annotations", lambda _path: iter(rows))
+    monkeypatch.setattr(vocabulary_module, "sha256_file", lambda _path: "b" * 64)
+
+    vocab_payload, coverage_payload = build_vocabulary_files(
+        annotations_path, split_path, vocabulary_path, coverage_path,
+        fasta_path=fasta_path, min_count=5,
+    )
+
+    assert set(vocab_payload["aspects"]) == {"F", "P", "C"}
+    assert vocab_payload["provenance"]["input_fasta_sha256"] == "a" * 64
+    assert coverage_payload["unassigned_curated_annotation_proteins"] == 0
+    assert vocabulary_path.exists() and coverage_path.exists()
+
+
+def test_build_vocabulary_files_rejects_empty_aspect(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    annotations_path = tmp_path / "annotations.tsv.gz"
+    split_path = tmp_path / "human_split.json"
+    fasta_path = tmp_path / "human.fasta.gz"
+    vocabulary_path = tmp_path / "vocabulary.json"
+    coverage_path = tmp_path / "coverage.json"
+    for path in (annotations_path, split_path, fasta_path):
+        path.write_bytes(b"fixture")
+    split_payload = {
+        "track": "A",
+        "assignments": {
+            f"P{i}": {"split": "train"} for i in range(5)
+        },
+    }
+    rows = [row(f"P{i}", "GO:F") for i in range(5)]
+    monkeypatch.setattr(vocabulary_module, "load_split", lambda *_args, **_kwargs: split_payload)
+    monkeypatch.setattr(vocabulary_module, "read_annotations", lambda _path: iter(rows))
+    with pytest.raises(VocabularyError, match="vocabulary is empty"):
+        build_vocabulary_files(
+            annotations_path, split_path, vocabulary_path, coverage_path,
+            fasta_path=fasta_path, min_count=5,
+        )
+    assert not vocabulary_path.exists()
+    assert not coverage_path.exists()
