@@ -371,7 +371,10 @@ def test_canonical_executable_resolves_symlinks_and_falls_back(
     target.write_text("", encoding="utf-8")
     link = tmp_path / "profile" / "bin" / "mmseqs"
     link.parent.mkdir(parents=True)
-    link.symlink_to(target)
+    try:
+        link.symlink_to(target)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation is unavailable: {exc}")
     monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: str(link))
     assert _canonical_executable("mmseqs") == str(target.resolve())
     monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
