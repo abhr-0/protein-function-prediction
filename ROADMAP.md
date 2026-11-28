@@ -14,7 +14,7 @@
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
 | 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
-| 2 | Splits and vocabulary: clusters, vocab | **Task A complete; Task B remains** |
+| 2 | Splits and vocabulary: clusters, vocab | **Complete (2026-11-28)** |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
 | 5 | Track B: full CAFA6, cafaeval, NK/LK/PK | Not started |
@@ -107,15 +107,21 @@ schema 3, 1,504,137 bytes, SHA-256
 
 ### Task B — Train-only vocabulary
 
-- [ ] Train-only vocabulary; retain terms appearing in at least 5 distinct training proteins; apply the frozen vocabulary to validation/test.
-- [ ] Build separate MF/BP/CC vocabularies from curated UniProt annotations; no ancestor propagation.
-- Coverage report: terms kept, test annotations covered, proteins dropped with
-  zero positives.
-- Tests: vocabulary is training-only; selected terms have at least one train positive; duplicate rows do not inflate protein counts.
+- [x] Train-only vocabulary; retain terms appearing in at least 5 distinct training proteins; apply the frozen vocabulary to validation/test.
+- [x] Build separate MF/BP/CC vocabularies from curated UniProt annotations; no ancestor propagation.
+- [x] Generate vocabulary and coverage JSON from the canonical schema 3 split and real human Swiss-Prot annotations.
+- [x] Tests: vocabulary is training-only; selected terms have at least one train positive; duplicate rows do not inflate protein counts; per-aspect protein sets remain independent.
+- [x] Local verification on Windows: `pytest` (119 passed) and `ruff check .` (all checks passed).
 
-Acceptance for Phase 2: split JSON + vocabulary JSON + coverage report; no test
+**Measured vocabulary (min_count = 5).** 5,543 terms retained: MF 1,214; BP
+3,519; CC 810. Annotation-pair coverage — MF: train 86.51%, validation
+79.53%, test 82.64%; BP: 85.71%, 81.34%, 81.56%; CC: 96.72%, 95.17%,
+95.41%. Outputs: `human_vocabulary.json` and `human_coverage.json`
+(generated locally under gitignored `data/derived`).
+
+Acceptance met: split JSON + vocabulary JSON + coverage report; no test
 protein contributes to the vocabulary; each selected term has at least one train
-positive. Phase 2 remains in progress until Task B is complete.
+positive. Phase 2 is complete.
 
 ---
 
