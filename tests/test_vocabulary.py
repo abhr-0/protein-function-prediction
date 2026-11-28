@@ -183,7 +183,7 @@ def test_build_vocabulary_files_writes_outputs_and_provenance(
         for aspect, term in (("F", "GO:F"), ("P", "GO:P"), ("C", "GO:C"))
         for i in range(5)
     ]
-    def fake_load_split(_path: Path, *, fasta_path: Path | None = None) -> dict[str, object]:
+    def fake_load_split(_path: Path, *, fasta_path: Path) -> dict[str, object]:
         assert fasta_path == fasta_path_fixture
         return split_payload
 
@@ -267,7 +267,7 @@ def test_vocab_cli_passes_layout_fasta_to_builder(
         vocabulary_path: Path,
         coverage_path: Path,
         *,
-        fasta_path: Path | None,
+        fasta_path: Path,
         verify_fasta: bool,
         min_count: int,
     ) -> tuple[dict[str, object], dict[str, object]]:
@@ -303,7 +303,7 @@ def test_vocab_cli_supports_custom_fasta_or_explicit_skip(
     custom_fasta = tmp_path / "alternate.fasta.gz"
     captured: dict[str, object] = {}
 
-    def fake_builder(*_args, fasta_path: Path | None, verify_fasta: bool, **_kwargs):
+    def fake_builder(*_args, fasta_path: Path, verify_fasta: bool, **_kwargs):
         captured["fasta"] = fasta_path
         captured["verify_fasta"] = verify_fasta
         return (
