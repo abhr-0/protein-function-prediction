@@ -9,6 +9,7 @@ import os
 import platform
 import shutil
 import subprocess
+import tempfile
 import sys
 from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
