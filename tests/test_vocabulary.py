@@ -183,3 +183,40 @@ def test_build_vocabulary_files_rejects_empty_aspect(
         )
     assert not vocabulary_path.exists()
     assert not coverage_path.exists()
+
+
+
+def test_vocab_cli_passes_layout_fasta_to_builder(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
+) -> None:
+    from pfpred import cli
+
+    captured: dict[str, object] = {}
+
+    def fake_builder(
+        annotation_path: Path,
+        split_path: Path,
+        vocabulary_path: Path,
+        coverage_path: Path,
+        *,
+        fasta_path: Path,
+        min_count: int,
+    ) -> tuple[dict[str, object], dict[str, object]]:
+        captured.update({
+            "annotation": annotation_path,
+            "split": split_path,
+            "vocabulary": vocabulary_path,
+            "coverage": coverage_path,
+            "fasta": fasta_path,
+            "min_count": min_count,
+        })
+        return (
+            {"aspects": {aspect: {"term_count": 1} for aspect in ("F", "P", "C")}},
+            {"aspects": {}},
+        )
+
+    monkeypatch.setattr(cli, "build_vocabulary_files", fake_builder)
+    assert cli.main(["vocab", "--root", str(tmp_path)]) == 0
+    assert captured["fasta"] == tmp_path / "data/raw/uniprot/human_proteins_2026_04.fasta.gz"
+    assert captured["min_count"] == 5
+    assert "Wrote vocabulary" in capsys.readouterr().out
