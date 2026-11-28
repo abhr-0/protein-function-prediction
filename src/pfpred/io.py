@@ -20,7 +20,7 @@ def open_text(path: Path) -> TextIO:
     return open(path, encoding="utf-8", newline="")
 
 
-def read_tsv(path: Path, *, delimiter: str = "\\t") -> Iterator[list[str]]:
+def read_tsv(path: Path, *, delimiter: str = "\t") -> Iterator[list[str]]:
     """Yield non-empty rows of a TSV file as lists of fields."""
     with open_text(path) as handle:
         for row in csv.reader(handle, delimiter=delimiter):
@@ -45,7 +45,7 @@ def write_json_atomic(path: Path, payload: Mapping[str, object]) -> None:
         ) as handle:
             temporary = Path(handle.name)
             json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\\n")
+            handle.write("\n")
         temporary.replace(path)
     finally:
         if temporary is not None and temporary.exists():
