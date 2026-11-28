@@ -134,3 +134,24 @@ def test_cluster_command_reports_malformed_fasta_without_traceback(
     captured = capsys.readouterr()
     assert "clustering failed" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_vocab_command_reports_build_error_without_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys,
+) -> None:
+    from pfpred import cli
+    from pfpred.vocabulary import VocabularyError
+
+    def fail_builder(*_args, **_kwargs):
+        raise VocabularyError("fixture vocabulary failure")
+
+    monkeypatch.setattr(cli, "build_vocabulary_files", fail_builder)
+    assert main(["vocab", "--root", str(tmp_path)]) == 1
+    captured = capsys.readouterr()
+    assert "vocabulary build failed: fixture vocabulary failure" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_vocab_cli_rejects_conflicting_fasta_options() -> None:
+    with pytest.raises(SystemExit):
+        main(["vocab", "--fasta", "source.fasta.gz", "--skip-fasta-check"])

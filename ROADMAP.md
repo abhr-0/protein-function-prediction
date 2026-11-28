@@ -14,7 +14,7 @@
 |---|---|---|
 | 0 | Foundation: docs, environment, raw data | **Complete (2026-11-24)** |
 | 1 | Data adapters: human Swiss-Prot, CAFA6, evidence policy | **Complete (2026-11-25)** |
-| 2 | Splits and vocabulary: clusters, vocab | **Task A complete; Task B remains** |
+| 2 | Splits and vocabulary: clusters, vocab | **Complete (2026-11-28)** |
 | 3 | ESM-2 embeddings: protocol, cache, Colab T4 | Not started |
 | 4 | Track A baseline: LR + kNN, MF, micro/macro F1 | Not started |
 | 5 | Track B: full CAFA6, cafaeval, NK/LK/PK | Not started |
@@ -107,14 +107,25 @@ schema 3, 1,504,137 bytes, SHA-256
 
 ### Task B — Train-only vocabulary
 
-- Train-only vocabulary; minimum training count policy; apply to val/test.
-- Coverage report: terms kept, test annotations covered, proteins dropped with
-  zero positives.
-- Tests: vocabulary is training-only; selected terms have at least one train positive.
+- [x] `pfpred vocab` command and train-only vocabulary generation.
+- [x] Separate MF/BP/CC vocabularies from curated UniProt annotations; no ancestor propagation.
+- [x] Minimum of five distinct training proteins per term; reject empty aspect vocabularies.
+- [x] Verify split FASTA digest and preserve split/MMseqs provenance in vocabulary JSON.
+- [x] Regression tests prove holdout labels cannot enter vocabulary selection.
+- [x] Artifact, CLI error, aspect validation, and output-path collision tests.
+- [ ] Re-run `pytest` and `ruff check .` after the Round 2 revisions.
 
-Acceptance for Phase 2: split JSON + vocabulary JSON + coverage report; no test
-protein contributes to the vocabulary; each selected term has at least one train
-positive. Phase 2 remains in progress until Task B is complete.
+**Measured vocabulary (min_count = 5).** 5,543 terms retained: MF 1,214;
+BP 3,519; CC 810. Annotation-pair coverage — MF: train 86.51%, validation
+79.53%, test 82.64%; BP: 85.71%, 81.34%, 81.56%; CC: 96.72%, 95.17%,
+95.41%. Generated from split SHA-256
+`d5ef27980bc100f82e1257de1da9781275c9c32ab047432cdf985fa52a81b6c3`
+on Linux x86_64 with MMseqs2 18-8cc5c. Outputs are gitignored under
+`data/derived`.
+
+Acceptance met: split JSON + vocabulary JSON + coverage report; no validation
+or test protein contributes to vocabulary selection; every retained term meets
+the five-training-protein threshold. Phase 2 is complete.
 
 ---
 
@@ -188,6 +199,7 @@ flags recorded.
 | Track B metric | `cafaeval` IA F-max; NK/LK/PK; PK `-known` |
 | GO graph/IA | CAFA6 frozen `go-basic.obo` + `IA.tsv` (Track B) |
 | Propagation | Raw training labels; evaluate with `-prop fill` |
+| Track A vocabulary | Per-aspect; curated; >=5 distinct training proteins per term; no propagation |
 | Aspects | Per-aspect runs; MF first |
 | Features | ESM-2 650M frozen, mean-pool, truncate 1024 |
 | Models | Logistic regression + cosine kNN; MLP next |

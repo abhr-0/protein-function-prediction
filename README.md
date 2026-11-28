@@ -4,9 +4,9 @@ Sequence-only prediction of Gene Ontology terms, rebuilt from scratch as two
 experiments that share one codebase.
 
 **Status: Phase 1 complete (2026-11-25). Phase 2 in progress: Task A complete
-with the leakage-checked split; Task B (vocabulary) next.** The `pfpred`
+with the leakage-checked split; Task B (train-only vocabulary) in implementation.** The `pfpred`
 package has adapters for both tracks, a `pfpred verify` command that checks the
-25 raw-data counts, and `pfpred cluster` for Track A splits.
+25 raw-data counts, and `pfpred cluster` for Track A splits. `pfpred vocab` builds the per-aspect train-only GO vocabulary and coverage report (minimum five distinct training proteins per term).
 See [ROADMAP.md](ROADMAP.md) for milestones. A local, untracked `PLAN.md` may
 hold the current commit-level checklist.
 

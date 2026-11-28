@@ -206,9 +206,7 @@ which checks the 25 raw-data counts and exits non-zero on drift; split numbers
 come from the artifact. Phase 2 is in progress: Task A is complete and
 revalidated with a separate holdout-vs-train search at the same 30%/80%
 thresholds, plus recorded val↔test and stricter-sensitivity probes; cluster
-membership alone is not treated as a leakage guarantee. Task B (train-only
-vocabulary) is next: build the vocabulary on the post-repair train split
-(17,032 proteins), not the pre-repair split.
+membership alone is not treated as a leakage guarantee. Task B (train-only vocabulary) is in implementation: build the vocabulary on the post-repair train split (17,032 proteins), not the pre-repair split. Retain a term only when it occurs in at least five distinct training proteins; fit separate MF/BP/CC vocabularies.
 
 ---
 

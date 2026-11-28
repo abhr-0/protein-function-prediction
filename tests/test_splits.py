@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -162,6 +163,9 @@ def _valid_payload() -> dict[str, object]:
     }
     return {
         "schema_version": 3,
+        "track": "A",
+        "dataset": "Human Swiss-Prot fixture",
+        "input_fasta": "human.fasta.gz",
         "input_sha256": "a" * 64,
         "platform": {"system": "linux", "machine": "x86_64", "python": "3.12.0"},
         "mmseqs": {
@@ -212,6 +216,21 @@ def _valid_payload() -> dict[str, object]:
     }
 
 
+def test_load_split_verifies_the_supplied_fasta_digest(tmp_path: Path) -> None:
+    fasta_path = tmp_path / "human.fasta.gz"
+    fasta_path.write_bytes(b">P1\\nACDE\\n")
+    payload = _valid_payload()
+    payload["input_sha256"] = hashlib.sha256(fasta_path.read_bytes()).hexdigest()
+    split_path = tmp_path / "split.json"
+    split_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert load_split(split_path, fasta_path=fasta_path)["input_fasta"] == "human.fasta.gz"
+
+    fasta_path.write_bytes(b">P1\\nAAAA\\n")
+    with pytest.raises(SplitError, match="does not match the supplied FASTA"):
+        load_split(split_path, fasta_path=fasta_path)
+
+
 def test_validate_split_payload_accepts_consistent_payload() -> None:
     validate_split_payload(_valid_payload())
 
@@ -228,6 +247,31 @@ def test_validate_split_payload_rejects_split_cluster_and_count_mismatch() -> No
     payload = _valid_payload()
     payload["leak_check"]["hits"] = 2
     with pytest.raises(SplitError, match="zero-hit"):
+        validate_split_payload(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("track", "B"),
+        ("dataset", ""),
+        ("input_fasta", None),
+    ],
+)
+def test_validate_split_payload_requires_track_dataset_and_fasta_provenance(
+    field: str, value: object,
+) -> None:
+    payload = _valid_payload()
+    payload[field] = value
+    with pytest.raises(SplitError, match=field):
+        validate_split_payload(payload)
+
+
+@pytest.mark.parametrize("field", ["track", "dataset", "input_fasta"])
+def test_validate_split_payload_rejects_missing_provenance(field: str) -> None:
+    payload = _valid_payload()
+    del payload[field]
+    with pytest.raises(SplitError, match=field):
         validate_split_payload(payload)
 
 
@@ -369,13 +413,17 @@ def test_canonical_executable_resolves_symlinks_and_falls_back(
     target = tmp_path / "store" / "mmseqs"
     target.parent.mkdir()
     target.write_text("", encoding="utf-8")
-    link = tmp_path / "profile" / "bin" / "mmseqs"
-    link.parent.mkdir(parents=True)
-    link.symlink_to(target)
-    monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: str(link))
-    assert _canonical_executable("mmseqs") == str(target.resolve())
     monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
     assert _canonical_executable("mmseqs") == "mmseqs"
+
+    link = tmp_path / "profile" / "bin" / "mmseqs"
+    link.parent.mkdir(parents=True)
+    try:
+        link.symlink_to(target)
+    except (NotImplementedError, OSError) as exc:
+        pytest.skip(f"symlink creation is unavailable: {exc}")
+    monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: str(link))
+    assert _canonical_executable("mmseqs") == str(target.resolve())
 
 
 def test_validate_split_payload_requires_digest_platform_and_executable() -> None:

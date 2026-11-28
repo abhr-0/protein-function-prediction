@@ -15,6 +15,7 @@ from pfpred.paths import Layout
 from pfpred.records import DataFormatError
 from pfpred.splits import SplitError, run_clustering
 from pfpred.uniprot import read_annotations, read_fasta
+from pfpred.vocabulary import DEFAULT_MIN_COUNT, VocabularyError, build_vocabulary_files
 
 GROUNDTRUTH_KINDS = ("NK", "LK", "PK")
 
@@ -151,8 +152,69 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="output JSON path (default: data/derived/human_split.json)",
     )
 
+    vocab = subparsers.add_parser(
+        "vocab", help="build the train-only Track A GO vocabulary and coverage report"
+    )
+    vocab.add_argument(
+        "--root", type=Path, default=None,
+        help="project root containing data/ (default: PFP_ROOT or the repository)",
+    )
+    vocab.add_argument(
+        "--min-count", type=int, default=DEFAULT_MIN_COUNT,
+        help=f"minimum distinct training proteins per GO term (default: {DEFAULT_MIN_COUNT})",
+    )
+    vocab.add_argument("--split", type=Path, default=None, help="split JSON path")
+    vocab.add_argument("--annotations", type=Path, default=None, help="curated UniProt TSV.GZ path")
+    vocab.add_argument("--output", type=Path, default=None, help="vocabulary JSON output path")
+    vocab.add_argument("--coverage", type=Path, default=None, help="coverage JSON output path")
+    fasta_options = vocab.add_mutually_exclusive_group()
+    fasta_options.add_argument(
+        "--fasta", type=Path, default=None,
+        help="source FASTA for split digest verification (default: Track A FASTA)",
+    )
+    fasta_options.add_argument(
+        "--skip-fasta-check", action="store_true",
+        help="explicitly skip verifying the split artifact against its source FASTA",
+    )
+
     args = parser.parse_args(argv)
     layout = Layout(args.root.expanduser().resolve()) if args.root else Layout.from_env()
+
+    if args.command == "vocab":
+        split_path = args.split.expanduser().resolve() if args.split else layout.human_split
+        annotation_path = (
+            args.annotations.expanduser().resolve()
+            if args.annotations else layout.human_annotations
+        )
+        vocabulary_path = (
+            args.output.expanduser().resolve()
+            if args.output else layout.human_vocabulary
+        )
+        coverage_path = (
+            args.coverage.expanduser().resolve()
+            if args.coverage else layout.human_coverage
+        )
+        fasta_path = (
+            args.fasta.expanduser().resolve() if args.fasta else layout.human_fasta
+        )
+        try:
+            vocab_payload, coverage_payload = build_vocabulary_files(
+                annotation_path, split_path, vocabulary_path, coverage_path,
+                fasta_path=fasta_path,
+                verify_fasta=not args.skip_fasta_check,
+                min_count=args.min_count,
+            )
+        except (OSError, DataFormatError, SplitError, VocabularyError) as exc:
+            print(f"error: vocabulary build failed: {exc}", file=sys.stderr)
+            return 1
+        print(f"Wrote vocabulary to {vocabulary_path}")
+        print(f"Wrote coverage report to {coverage_path}")
+        print(json.dumps({
+            aspect: item["term_count"]
+            for aspect, item in vocab_payload["aspects"].items()
+        }, indent=2, sort_keys=True))
+        print(json.dumps(coverage_payload["aspects"], indent=2, sort_keys=True))
+        return 0
 
     if args.command == "verify":
         counts = collect_counts(layout)

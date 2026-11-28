@@ -34,3 +34,18 @@ def test_expect_header_accepts_match() -> None:
 def test_expect_header_rejects_mismatch() -> None:
     with pytest.raises(DataFormatError, match="tiny: expected header"):
         expect_header(["Entry", "Term"], ["Entry", "GO"], source="tiny")
+
+
+def test_write_json_atomic_is_deterministic_and_cleans_temporary_files(
+    tmp_path: Path,
+) -> None:
+    from pfpred.io import write_json_atomic
+
+    output = tmp_path / "nested" / "result.json"
+    payload = {"z": 2, "a": {"value": 1}}
+    write_json_atomic(output, payload)
+    first = output.read_bytes()
+    write_json_atomic(output, payload)
+    assert output.read_bytes() == first
+    assert first.endswith(b"\n")
+    assert list(output.parent.iterdir()) == [output]

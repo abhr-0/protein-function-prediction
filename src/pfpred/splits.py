@@ -15,6 +15,7 @@ from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from pathlib import Path
 
+from pfpred.io import write_json_atomic
 from pfpred.paths import sha256_file
 from pfpred.uniprot import read_fasta
 
@@ -474,6 +475,14 @@ def validate_split_payload(payload: Mapping[str, object]) -> None:
     """Validate split JSON structure, counts, labels, and cluster indivisibility."""
     if payload.get("schema_version") != SPLIT_SCHEMA_VERSION:
         raise SplitError(f"split payload schema_version must be {SPLIT_SCHEMA_VERSION}")
+    if payload.get("track") != "A":
+        raise SplitError("split payload track must be 'A'")
+    dataset = payload.get("dataset")
+    if not isinstance(dataset, str) or not dataset.strip():
+        raise SplitError("split payload dataset must be a non-empty string")
+    input_fasta = payload.get("input_fasta")
+    if not isinstance(input_fasta, str) or not input_fasta.strip():
+        raise SplitError("split payload input_fasta must be a non-empty string")
     input_sha256 = payload.get("input_sha256")
     if (
         not isinstance(input_sha256, str)
@@ -602,23 +611,6 @@ def load_split(path: Path, *, fasta_path: Path | None = None) -> dict[str, objec
     return payload
 
 
-def _write_json(path: Path, payload: Mapping[str, object]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=path.parent,
-            prefix=f".{path.name}.", suffix=".tmp", delete=False,
-        ) as handle:
-            temporary = Path(handle.name)
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        temporary.replace(path)
-    finally:
-        if temporary is not None and temporary.exists():
-            temporary.unlink()
-
-
 def run_clustering(
     fasta_path: Path,
     output_path: Path,
@@ -713,5 +705,5 @@ def run_clustering(
         "assignments": dict(sorted(assignments.items())),
     }
     validate_split_payload(payload)
-    _write_json(output_path, payload)
+    write_json_atomic(output_path, payload)
     return payload
