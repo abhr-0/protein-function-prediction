@@ -268,6 +268,7 @@ def test_vocab_cli_passes_layout_fasta_to_builder(
         coverage_path: Path,
         *,
         fasta_path: Path | None,
+        verify_fasta: bool,
         min_count: int,
     ) -> tuple[dict[str, object], dict[str, object]]:
         captured.update({
@@ -276,6 +277,7 @@ def test_vocab_cli_passes_layout_fasta_to_builder(
             "vocabulary": vocabulary_path,
             "coverage": coverage_path,
             "fasta": fasta_path,
+            "verify_fasta": verify_fasta,
             "min_count": min_count,
         })
         return (
@@ -301,8 +303,9 @@ def test_vocab_cli_supports_custom_fasta_or_explicit_skip(
     custom_fasta = tmp_path / "alternate.fasta.gz"
     captured: dict[str, object] = {}
 
-    def fake_builder(*_args, fasta_path: Path | None, **_kwargs):
+    def fake_builder(*_args, fasta_path: Path | None, verify_fasta: bool, **_kwargs):
         captured["fasta"] = fasta_path
+        captured["verify_fasta"] = verify_fasta
         return (
             {"aspects": {aspect: {"term_count": 1} for aspect in ("F", "P", "C")}},
             {"aspects": {}},
@@ -316,7 +319,8 @@ def test_vocab_cli_supports_custom_fasta_or_explicit_skip(
         args.extend(["--fasta", str(custom_fasta)])
 
     assert cli.main(args) == 0
-    assert captured["fasta"] is (None if skip_check else custom_fasta.resolve())
+    assert captured["fasta"] == (tmp_path / "data/raw/uniprot/human_proteins_2026_04.fasta.gz" if skip_check else custom_fasta.resolve())
+    assert captured["verify_fasta"] is not skip_check
 
 
 def test_numpy_integer_min_count_is_supported() -> None:
