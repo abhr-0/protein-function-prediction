@@ -198,7 +198,8 @@ flags recorded.
 | Track B labels | CAFA6 `train_terms.tsv` (t0) only |
 | Track B metric | `cafaeval` IA F-max; NK/LK/PK; PK `-known` |
 | GO graph/IA | CAFA6 frozen `go-basic.obo` + `IA.tsv` (Track B) |
-| Propagation | Raw training labels; evaluate with `-prop fill` |\n| Track A vocabulary | Per-aspect; curated evidence; minimum 5 distinct training proteins per term; no ancestor propagation |
+| Propagation | Raw training labels; evaluate with `-prop fill` |
+| Track A vocabulary | Per-aspect; curated evidence; minimum 5 distinct training proteins per term; no ancestor propagation |
 | Aspects | Per-aspect runs; MF first |
 | Features | ESM-2 650M frozen, mean-pool, truncate 1024 |
 | Models | Logistic regression + cosine kNN; MLP next |
