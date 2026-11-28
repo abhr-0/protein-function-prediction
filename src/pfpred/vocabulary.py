@@ -10,7 +10,7 @@ from pathlib import Path
 from pfpred.io import write_json_atomic
 from pfpred.labels import CURATED, filter_annotations, group_by_aspect
 from pfpred.paths import sha256_file
-from pfpred.records import Annotation, DataFormatError, VALID_ASPECTS
+from pfpred.records import VALID_ASPECTS, Annotation, DataFormatError
 from pfpred.splits import SPLIT_NAMES, load_split
 from pfpred.uniprot import read_annotations
 
