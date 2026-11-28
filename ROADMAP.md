@@ -113,7 +113,7 @@ schema 3, 1,504,137 bytes, SHA-256
 - [x] Verify split FASTA digest and preserve split/MMseqs provenance in vocabulary JSON.
 - [x] Regression tests prove holdout labels cannot enter vocabulary selection.
 - [x] Artifact, CLI error, aspect validation, and output-path collision tests.
-- [x] Local verification: `pytest` (119 passed) and `ruff check .` (all checks passed).
+- [ ] Re-run `pytest` and `ruff check .` after the review revisions.
 
 **Measured vocabulary (min_count = 5).** 5,543 terms retained: MF 1,214;
 BP 3,519; CC 810. Annotation-pair coverage — MF: train 86.51%, validation
