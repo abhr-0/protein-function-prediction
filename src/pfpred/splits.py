@@ -611,8 +611,6 @@ def load_split(path: Path, *, fasta_path: Path | None = None) -> dict[str, objec
     return payload
 
 
-_write_json = write_json_atomic
-
 def run_clustering(
     fasta_path: Path,
     output_path: Path,
@@ -707,5 +705,5 @@ def run_clustering(
         "assignments": dict(sorted(assignments.items())),
     }
     validate_split_payload(payload)
-    _write_json(output_path, payload)
+    write_json_atomic(output_path, payload)
     return payload
