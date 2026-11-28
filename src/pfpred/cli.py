@@ -167,6 +167,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     vocab.add_argument("--annotations", type=Path, default=None, help="curated UniProt TSV.GZ path")
     vocab.add_argument("--output", type=Path, default=None, help="vocabulary JSON output path")
     vocab.add_argument("--coverage", type=Path, default=None, help="coverage JSON output path")
+    vocab.add_argument("--fasta", type=Path, default=None, help="source FASTA for split digest verification")
+    vocab.add_argument(
+        "--skip-fasta-check", action="store_true",
+        help="skip verifying the split artifact against its source FASTA",
+    )
 
     args = parser.parse_args(argv)
     layout = Layout(args.root.expanduser().resolve()) if args.root else Layout.from_env()
@@ -185,10 +190,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.coverage.expanduser().resolve()
             if args.coverage else layout.human_coverage
         )
+        fasta_path = (
+            args.fasta.expanduser().resolve() if args.fasta else layout.human_fasta
+        )
+        if args.skip_fasta_check:
+            fasta_path = None
         try:
             vocab_payload, coverage_payload = build_vocabulary_files(
                 annotation_path, split_path, vocabulary_path, coverage_path,
-                fasta_path=layout.human_fasta,
+                fasta_path=fasta_path,
                 min_count=args.min_count,
             )
         except (OSError, DataFormatError, SplitError, VocabularyError) as exc:
