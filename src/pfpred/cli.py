@@ -167,10 +167,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     vocab.add_argument("--annotations", type=Path, default=None, help="curated UniProt TSV.GZ path")
     vocab.add_argument("--output", type=Path, default=None, help="vocabulary JSON output path")
     vocab.add_argument("--coverage", type=Path, default=None, help="coverage JSON output path")
-    vocab.add_argument("--fasta", type=Path, default=None, help="source FASTA for split digest verification")
-    vocab.add_argument(
+    fasta_options = vocab.add_mutually_exclusive_group()
+    fasta_options.add_argument(
+        "--fasta", type=Path, default=None,
+        help="source FASTA for split digest verification (default: Track A FASTA)",
+    )
+    fasta_options.add_argument(
         "--skip-fasta-check", action="store_true",
-        help="skip verifying the split artifact against its source FASTA",
+        help="explicitly skip verifying the split artifact against its source FASTA",
     )
 
     args = parser.parse_args(argv)
