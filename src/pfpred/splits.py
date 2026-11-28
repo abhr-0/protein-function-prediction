@@ -475,6 +475,14 @@ def validate_split_payload(payload: Mapping[str, object]) -> None:
     """Validate split JSON structure, counts, labels, and cluster indivisibility."""
     if payload.get("schema_version") != SPLIT_SCHEMA_VERSION:
         raise SplitError(f"split payload schema_version must be {SPLIT_SCHEMA_VERSION}")
+    if payload.get("track") != "A":
+        raise SplitError("split payload track must be 'A'")
+    dataset = payload.get("dataset")
+    if not isinstance(dataset, str) or not dataset.strip():
+        raise SplitError("split payload dataset must be a non-empty string")
+    input_fasta = payload.get("input_fasta")
+    if not isinstance(input_fasta, str) or not input_fasta.strip():
+        raise SplitError("split payload input_fasta must be a non-empty string")
     input_sha256 = payload.get("input_sha256")
     if (
         not isinstance(input_sha256, str)
