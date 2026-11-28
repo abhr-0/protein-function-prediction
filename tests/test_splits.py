@@ -162,6 +162,9 @@ def _valid_payload() -> dict[str, object]:
     }
     return {
         "schema_version": 3,
+        "track": "A",
+        "dataset": "Human Swiss-Prot fixture",
+        "input_fasta": "human.fasta.gz",
         "input_sha256": "a" * 64,
         "platform": {"system": "linux", "machine": "x86_64", "python": "3.12.0"},
         "mmseqs": {
@@ -228,6 +231,31 @@ def test_validate_split_payload_rejects_split_cluster_and_count_mismatch() -> No
     payload = _valid_payload()
     payload["leak_check"]["hits"] = 2
     with pytest.raises(SplitError, match="zero-hit"):
+        validate_split_payload(payload)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("track", "B"),
+        ("dataset", ""),
+        ("input_fasta", None),
+    ],
+)
+def test_validate_split_payload_requires_track_dataset_and_fasta_provenance(
+    field: str, value: object,
+) -> None:
+    payload = _valid_payload()
+    payload[field] = value
+    with pytest.raises(SplitError, match=field):
+        validate_split_payload(payload)
+
+
+@pytest.mark.parametrize("field", ["track", "dataset", "input_fasta"])
+def test_validate_split_payload_rejects_missing_provenance(field: str) -> None:
+    payload = _valid_payload()
+    del payload[field]
+    with pytest.raises(SplitError, match=field):
         validate_split_payload(payload)
 
 
