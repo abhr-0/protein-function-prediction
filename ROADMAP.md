@@ -107,10 +107,11 @@ schema 3, 1,504,137 bytes, SHA-256
 
 ### Task B — Train-only vocabulary
 
-- Train-only vocabulary; minimum training count policy; apply to val/test.
+- [ ] Train-only vocabulary; retain terms appearing in at least 5 distinct training proteins; apply the frozen vocabulary to validation/test.
+- [ ] Build separate MF/BP/CC vocabularies from curated UniProt annotations; no ancestor propagation.
 - Coverage report: terms kept, test annotations covered, proteins dropped with
   zero positives.
-- Tests: vocabulary is training-only; selected terms have at least one train positive.
+- Tests: vocabulary is training-only; selected terms have at least one train positive; duplicate rows do not inflate protein counts.
 
 Acceptance for Phase 2: split JSON + vocabulary JSON + coverage report; no test
 protein contributes to the vocabulary; each selected term has at least one train
@@ -187,7 +188,7 @@ flags recorded.
 | Track B labels | CAFA6 `train_terms.tsv` (t0) only |
 | Track B metric | `cafaeval` IA F-max; NK/LK/PK; PK `-known` |
 | GO graph/IA | CAFA6 frozen `go-basic.obo` + `IA.tsv` (Track B) |
-| Propagation | Raw training labels; evaluate with `-prop fill` |
+| Propagation | Raw training labels; evaluate with `-prop fill` |\n| Track A vocabulary | Per-aspect; curated evidence; minimum 5 distinct training proteins per term; no ancestor propagation |
 | Aspects | Per-aspect runs; MF first |
 | Features | ESM-2 650M frozen, mean-pool, truncate 1024 |
 | Models | Logistic regression + cosine kNN; MLP next |
