@@ -32,11 +32,10 @@ def test_vocabulary_uses_distinct_training_proteins_and_separates_aspects() -> N
         "T5": "train", "T6": "train", "V1": "validation", "X1": "train",
     }
 
-    vocabularies, coverage, unassigned = build_vocabulary(
+    vocabularies, coverage = build_vocabulary(
         annotations, assignments, min_count=5
     )
 
-    assert unassigned == 0
     assert vocabularies["F"] == {"GO:1": 5}
     assert vocabularies["P"] == {}
     assert vocabularies["C"] == {}
@@ -60,7 +59,7 @@ def test_holdout_annotations_cannot_enter_vocabulary() -> None:
         annotations.append(row(f"E{i}", "GO:leak_test"))
         assignments[f"E{i}"] = "test"
 
-    vocabularies, _, _ = build_vocabulary(annotations, assignments, min_count=5)
+    vocabularies, _ = build_vocabulary(annotations, assignments, min_count=5)
     assert vocabularies["F"] == {"GO:train": 5}
 
 
@@ -76,7 +75,7 @@ def test_frequency_boundary_and_duplicate_rows_are_exact() -> None:
 
 def test_selected_terms_have_a_training_positive() -> None:
     annotations = [row(f"T{i}", "GO:1") for i in range(5)]
-    vocabularies, coverage, _ = build_vocabulary(
+    vocabularies, coverage = build_vocabulary(
         annotations, {f"T{i}": "train" for i in range(5)}, min_count=5
     )
     assert vocabularies["F"]["GO:1"] == 5
