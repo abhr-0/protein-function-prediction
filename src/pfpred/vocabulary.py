@@ -121,10 +121,12 @@ def _validate_distinct_paths(
     split_path: Path,
     vocabulary_path: Path,
     coverage_path: Path,
+    fasta_path: Path,
 ) -> None:
     paths = {
         "annotations": annotation_path.expanduser().resolve(),
         "split": split_path.expanduser().resolve(),
+        "fasta": fasta_path.expanduser().resolve(),
         "vocabulary": vocabulary_path.expanduser().resolve(),
         "coverage": coverage_path.expanduser().resolve(),
     }
@@ -148,7 +150,7 @@ def build_vocabulary_files(
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Read Track A inputs, fit vocabulary, and write provenance + coverage JSON."""
     _validate_distinct_paths(
-        annotation_path, split_path, vocabulary_path, coverage_path
+        annotation_path, split_path, vocabulary_path, coverage_path, fasta_path
     )
     split_payload = load_split(split_path, fasta_path=fasta_path)
     if split_payload.get("track") != "A":
