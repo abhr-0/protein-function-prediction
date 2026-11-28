@@ -371,7 +371,15 @@ def test_canonical_executable_resolves_symlinks_and_falls_back(
     target.write_text("", encoding="utf-8")
     link = tmp_path / "profile" / "bin" / "mmseqs"
     link.parent.mkdir(parents=True)
-    link.symlink_to(target)
+    try:
+        link.symlink_to(target)
+    except OSError:
+        # Windows may deny symlink creation unless Developer Mode or elevated
+        # privileges are enabled. The PATH-miss fallback remains testable.
+        monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
+        assert _canonical_executable("mmseqs") == "mmseqs"
+        return
+
     monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: str(link))
     assert _canonical_executable("mmseqs") == str(target.resolve())
     monkeypatch.setattr("pfpred.splits.shutil.which", lambda _name: None)
