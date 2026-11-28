@@ -75,10 +75,6 @@ def build_vocabulary(
             for term in sorted(train_counts)
             if train_counts[term] >= min_count
         }
-        if not selected:
-            raise VocabularyError(
-                f"{ASPECT_NAMES[aspect]} vocabulary is empty at min_count={min_count}"
-            )
         vocabularies[aspect] = selected
 
         split_report: dict[str, object] = {}
@@ -168,6 +164,13 @@ def build_vocabulary_files(
     vocabularies, coverage, unassigned_count = build_vocabulary(
         read_annotations(annotation_path), assignments, min_count=min_count
     )
+    empty_aspects = [
+        ASPECT_NAMES[aspect] for aspect, terms in vocabularies.items() if not terms
+    ]
+    if empty_aspects:
+        raise VocabularyError(
+            f"vocabulary is empty for aspect(s): {', '.join(empty_aspects)}"
+        )
     split_digest = sha256_file(split_path)
     annotation_digest = sha256_file(annotation_path)
     vocab_payload: dict[str, object] = {
