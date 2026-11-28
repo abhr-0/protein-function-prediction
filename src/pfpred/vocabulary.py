@@ -121,7 +121,7 @@ def _validate_distinct_paths(
     split_path: Path,
     vocabulary_path: Path,
     coverage_path: Path,
-    fasta_path: Path | None,
+    fasta_path: Path,
 ) -> None:
     paths = {
         "annotations": annotation_path.expanduser().resolve(),
@@ -129,8 +129,7 @@ def _validate_distinct_paths(
         "vocabulary": vocabulary_path.expanduser().resolve(),
         "coverage": coverage_path.expanduser().resolve(),
     }
-    if fasta_path is not None:
-        paths["fasta"] = fasta_path.expanduser().resolve()
+    paths["fasta"] = fasta_path.expanduser().resolve()
     reverse: dict[Path, str] = {}
     for label, path in paths.items():
         if path in reverse:
@@ -146,7 +145,7 @@ def build_vocabulary_files(
     vocabulary_path: Path,
     coverage_path: Path,
     *,
-    fasta_path: Path | None = None,
+    fasta_path: Path,
     verify_fasta: bool = True,
     min_count: int = DEFAULT_MIN_COUNT,
 ) -> tuple[dict[str, object], dict[str, object]]:
