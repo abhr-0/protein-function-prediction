@@ -21,7 +21,10 @@ def open_text(path: Path) -> TextIO:
 
 
 def read_tsv(path: Path, *, delimiter: str = "\t") -> Iterator[list[str]]:
-    """Yield non-empty rows of a TSV file as lists of fields."""
+    """Yield non-empty TSV rows, including a header row when present.
+
+    Callers validate the header with :func:`expect_header`.
+    """
     with open_text(path) as handle:
         for row in csv.reader(handle, delimiter=delimiter):
             if row:
