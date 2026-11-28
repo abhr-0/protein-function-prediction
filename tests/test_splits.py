@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -213,6 +214,21 @@ def _valid_payload() -> dict[str, object]:
         },
         "assignments": assignments,
     }
+
+
+def test_load_split_verifies_the_supplied_fasta_digest(tmp_path: Path) -> None:
+    fasta_path = tmp_path / "human.fasta.gz"
+    fasta_path.write_bytes(b">P1\\nACDE\\n")
+    payload = _valid_payload()
+    payload["input_sha256"] = hashlib.sha256(fasta_path.read_bytes()).hexdigest()
+    split_path = tmp_path / "split.json"
+    split_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert load_split(split_path, fasta_path=fasta_path)["input_fasta"] == "human.fasta.gz"
+
+    fasta_path.write_bytes(b">P1\\nAAAA\\n")
+    with pytest.raises(SplitError, match="does not match the supplied FASTA"):
+        load_split(split_path, fasta_path=fasta_path)
 
 
 def test_validate_split_payload_accepts_consistent_payload() -> None:
