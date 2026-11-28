@@ -143,7 +143,7 @@ def test_build_vocabulary_files_rejects_output_overwriting_fasta(
     with pytest.raises(VocabularyError, match="path collision"):
         build_vocabulary_files(
             annotations_path, split_path, fasta_path, coverage_path,
-            fasta_path=fasta_path,
+            fasta_path=fasta_path, verify_fasta=False,
         )
 
     assert fasta_path.read_bytes() == b"original raw FASTA"
