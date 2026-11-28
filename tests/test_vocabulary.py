@@ -105,8 +105,9 @@ def test_min_count_must_be_positive_integer(min_count: int) -> None:
 
 @pytest.mark.parametrize(
     "collision", [
-        "annotations_split", "annotations_vocabulary", "annotations_coverage",
-        "split_vocabulary", "split_coverage", "vocabulary_coverage",
+        "annotations_split", "annotations_fasta", "annotations_vocabulary", "annotations_coverage",
+        "split_fasta", "split_vocabulary", "split_coverage",
+        "fasta_vocabulary", "fasta_coverage", "vocabulary_coverage",
     ]
 )
 def test_all_input_and_output_path_collisions_are_rejected(
@@ -115,6 +116,7 @@ def test_all_input_and_output_path_collisions_are_rejected(
     paths = {
         "annotations": tmp_path / "annotations.tsv.gz",
         "split": tmp_path / "split.json",
+        "fasta": tmp_path / "human.fasta.gz",
         "vocabulary": tmp_path / "vocab.json",
         "coverage": tmp_path / "coverage.json",
     }
@@ -122,8 +124,29 @@ def test_all_input_and_output_path_collisions_are_rejected(
     paths[second] = paths[first]
     with pytest.raises(VocabularyError, match="path collision"):
         _validate_distinct_paths(
-            paths["annotations"], paths["split"], paths["vocabulary"], paths["coverage"]
+            paths["annotations"], paths["split"], paths["vocabulary"], paths["coverage"],
+            paths["fasta"],
         )
+
+
+def test_build_vocabulary_files_rejects_output_overwriting_fasta(
+    tmp_path: Path,
+) -> None:
+    annotations_path = tmp_path / "annotations.tsv.gz"
+    split_path = tmp_path / "human_split.json"
+    fasta_path = tmp_path / "human.fasta.gz"
+    coverage_path = tmp_path / "coverage.json"
+    fasta_path.write_bytes(b"original raw FASTA")
+    for path in (annotations_path, split_path):
+        path.write_bytes(b"fixture")
+
+    with pytest.raises(VocabularyError, match="path collision"):
+        build_vocabulary_files(
+            annotations_path, split_path, fasta_path, coverage_path,
+            fasta_path=fasta_path,
+        )
+
+    assert fasta_path.read_bytes() == b"original raw FASTA"
 
 
 def test_unknown_annotation_aspect_raises_vocabulary_error() -> None:
