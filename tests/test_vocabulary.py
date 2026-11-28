@@ -304,7 +304,7 @@ def test_vocab_cli_supports_custom_fasta_or_explicit_skip(
     captured: dict[str, object] = {}
 
     def fake_builder(*_args, fasta_path: Path, verify_fasta: bool, **_kwargs):
-        captured["fasta"] = fasta_path
+        captured["fasta_path"] = fasta_path
         captured["verify_fasta"] = verify_fasta
         return (
             {"aspects": {aspect: {"term_count": 1} for aspect in ("F", "P", "C")}},
@@ -319,7 +319,12 @@ def test_vocab_cli_supports_custom_fasta_or_explicit_skip(
         args.extend(["--fasta", str(custom_fasta)])
 
     assert cli.main(args) == 0
-    assert captured["fasta"] == (tmp_path / "data/raw/uniprot/human_proteins_2026_04.fasta.gz" if skip_check else custom_fasta.resolve())
+    expected_fasta = (
+    (tmp_path / "data/raw/uniprot/human_proteins_2026_04.fasta.gz").resolve()
+    if skip_check
+    else custom_fasta.resolve()
+)
+    assert captured["fasta_path"] == expected_fasta
     assert captured["verify_fasta"] is not skip_check
 
 
