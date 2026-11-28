@@ -47,5 +47,5 @@ def test_write_json_atomic_is_deterministic_and_cleans_temporary_files(
     first = output.read_bytes()
     write_json_atomic(output, payload)
     assert output.read_bytes() == first
-    assert first.endswith(b"\\n")
+    assert first.endswith(b"\n")
     assert list(output.parent.iterdir()) == [output]
