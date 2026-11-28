@@ -121,15 +121,16 @@ def _validate_distinct_paths(
     split_path: Path,
     vocabulary_path: Path,
     coverage_path: Path,
-    fasta_path: Path,
+    fasta_path: Path | None,
 ) -> None:
     paths = {
         "annotations": annotation_path.expanduser().resolve(),
         "split": split_path.expanduser().resolve(),
-        "fasta": fasta_path.expanduser().resolve(),
         "vocabulary": vocabulary_path.expanduser().resolve(),
         "coverage": coverage_path.expanduser().resolve(),
     }
+    if fasta_path is not None:
+        paths["fasta"] = fasta_path.expanduser().resolve()
     reverse: dict[Path, str] = {}
     for label, path in paths.items():
         if path in reverse:
@@ -145,7 +146,7 @@ def build_vocabulary_files(
     vocabulary_path: Path,
     coverage_path: Path,
     *,
-    fasta_path: Path,
+    fasta_path: Path | None = None,
     min_count: int = DEFAULT_MIN_COUNT,
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Read Track A inputs, fit vocabulary, and write provenance + coverage JSON."""
