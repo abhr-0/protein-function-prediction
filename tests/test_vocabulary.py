@@ -104,12 +104,29 @@ def test_min_count_must_be_positive_integer(min_count: int) -> None:
         build_vocabulary([], {}, min_count=min_count)
 
 
-def test_path_collisions_are_rejected(tmp_path: Path) -> None:
-    annotations = tmp_path / "annotations.tsv.gz"
-    split = tmp_path / "split.json"
-    output = tmp_path / "vocab.json"
+@pytest.mark.parametrize(
+    "collision", ["annotation_split", "annotation_output", "split_coverage", "output_coverage"]
+)
+def test_all_input_and_output_path_collisions_are_rejected(
+    tmp_path: Path, collision: str,
+) -> None:
+    paths = {
+        "annotations": tmp_path / "annotations.tsv.gz",
+        "split": tmp_path / "split.json",
+        "vocabulary": tmp_path / "vocab.json",
+        "coverage": tmp_path / "coverage.json",
+    }
+    first, second = collision.split("_")
+    paths[second] = paths[first]
     with pytest.raises(VocabularyError, match="path collision"):
-        _validate_distinct_paths(annotations, split, output, output)
+        _validate_distinct_paths(
+            paths["annotations"], paths["split"], paths["vocabulary"], paths["coverage"]
+        )
+
+
+def test_unknown_annotation_aspect_raises_vocabulary_error() -> None:
+    with pytest.raises(VocabularyError, match="unknown aspect"):
+        build_vocabulary([row("P1", "GO:1", aspect="X")], {"P1": "train"}, min_count=1)
 
 
 
@@ -219,3 +236,13 @@ def test_vocab_cli_passes_layout_fasta_to_builder(
     assert captured["fasta"] == tmp_path / "data/raw/uniprot/human_proteins_2026_04.fasta.gz"
     assert captured["min_count"] == 5
     assert "Wrote vocabulary" in capsys.readouterr().out
+
+
+def test_numpy_integer_min_count_is_supported() -> None:
+    import numpy as np
+
+    annotations = [row(f"T{i}", "GO:1") for i in range(5)]
+    vocabularies, _, _ = build_vocabulary(
+        annotations, {f"T{i}": "train" for i in range(5)}, min_count=np.int64(5)
+    )
+    assert vocabularies["F"] == {"GO:1": 5}
